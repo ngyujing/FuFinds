@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FuFinds — Stock Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg:         #f0f4f8;
+      --surface:    #ffffff;
+      --surface-2:  #f8fafc;
+      --primary:    #2563eb;
+      --primary-dk: #1d4ed8;
+      --primary-lt: #eff6ff;
+      --primary-bd: #bfdbfe;
+      --text:       #0f172a;
+      --text-2:     #475569;
+      --text-3:     #94a3b8;
+      --border:     #e2e8f0;
+      --gain:       #16a34a;
+      --gain-bg:    #f0fdf4;
+      --gain-bd:    #bbf7d0;
+      --loss:       #dc2626;
+      --loss-bg:    #fef2f2;
+      --loss-bd:    #fecaca;
+      --shadow:     0 1px 3px rgba(0,0,0,.08), 0 4px 6px rgba(0,0,0,.04);
+      --shadow-lg:  0 10px 30px rgba(0,0,0,.12);
+      --radius:     14px;
+      --radius-sm:  8px;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── HEADER ─────────────────────────────────────── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 1px 4px rgba(0,0,0,.05);
+    }
+    .header-inner {
+      max-width: 1200px; margin: 0 auto;
+      padding: 0 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 62px; gap: 16px;
+    }
+    .logo {
+      font-size: 1.45rem; font-weight: 800;
+      color: var(--primary); letter-spacing: -0.5px;
+      white-space: nowrap;
+    }
+    .logo span { color: var(--text); }
+
+    .nav-tabs {
+      display: flex; gap: 4px;
+      background: var(--surface-2);
+      padding: 4px; border-radius: var(--radius);
+      border: 1px solid var(--border);
+    }
+    .nav-tab {
+      padding: 7px 18px; border: none;
+      background: transparent; border-radius: var(--radius-sm);
+      font-family: inherit; font-size: .875rem; font-weight: 500;
+      color: var(--text-2); cursor: pointer; transition: all .15s;
+      white-space: nowrap;
+    }
+    .nav-tab.active {
+      background: var(--surface); color: var(--primary);
+      box-shadow: 0 1px 3px rgba(0,0,0,.1);
+    }
+    .nav-tab:hover:not(.active) { color: var(--text); background: rgba(0,0,0,.04); }
+
+    .header-meta {
+      font-size: .75rem; color: var(--text-3);
+      white-space: nowrap; min-width: 110px; text-align: right;
+    }
+
+    /* ── MAIN ───────────────────────────────────────── */
+    main { max-width: 1200px; margin: 0 auto; padding: 28px 20px; }
+
+    .page { display: none; }
+    .page.active { display: block; }
+
+    .page-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 24px; gap: 12px; flex-wrap: wrap;
+    }
+    .page-header h2 { font-size: 1.5rem; font-weight: 700; }
+
+    .live-badge {
+      display: flex; align-items: center; gap: 6px;
+      font-size: .78rem; color: var(--text-2);
+      background: var(--gain-bg); border: 1px solid var(--gain-bd);
+      padding: 4px 10px; border-radius: 20px;
+    }
+    .pulse {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--gain); flex-shrink: 0;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+    /* ── SECTION TITLES ─────────────────────────────── */
+    .market-section { margin-bottom: 36px; }
+    .market-title {
+      font-size: 1rem; font-weight: 600; color: var(--text);
+      margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+    }
+
+    /* ── RECOMMENDATION CARDS ───────────────────────── */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 16px;
+    }
+
+    .stock-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px;
+      box-shadow: var(--shadow); transition: box-shadow .2s, transform .15s;
+    }
+    .stock-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-1px); }
+
+    /* Card header */
+    .card-header {
+      display: flex; align-items: flex-start;
+      justify-content: space-between; gap: 10px; margin-bottom: 14px;
+    }
+    .card-left { display: flex; align-items: flex-start; gap: 10px; }
+    .ticker-badge {
+      background: var(--primary); color: #fff;
+      font-size: .78rem; font-weight: 700;
+      padding: 4px 10px; border-radius: 6px;
+      letter-spacing: .5px; white-space: nowrap; margin-top: 2px;
+    }
+    .sg-badge { background: #dc6803; }
+    .company-name {
+      font-size: .875rem; font-weight: 600; color: var(--text); line-height: 1.3;
+    }
+    .market-pill { font-size: .72rem; color: var(--text-3); margin-top: 3px; }
+
+    .price-block { text-align: right; flex-shrink: 0; }
+    .current-price { font-size: 1.05rem; font-weight: 700; color: var(--text); }
+    .price-change {
+      font-size: .75rem; font-weight: 600; margin-top: 2px;
+    }
+    .up { color: var(--gain); }
+    .down { color: var(--loss); }
+    .loading-dot {
+      font-size: .8rem; color: var(--text-3);
+      animation: blink 1.4s infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:.4} 50%{opacity:1} }
+
+    /* Collapsible sections */
+    .card-sections { margin-bottom: 12px; }
+    .card-section {
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      margin-bottom: 6px; overflow: hidden;
+    }
+    .section-toggle {
+      width: 100%; padding: 8px 12px;
+      background: var(--surface-2); border: none;
+      font-family: inherit; font-size: .78rem; font-weight: 600;
+      color: var(--text-2); cursor: pointer; text-align: left;
+      display: flex; justify-content: space-between; align-items: center;
+      transition: background .15s;
+    }
+    .section-toggle:hover { background: var(--border); }
+    .toggle-arrow { transition: transform .2s; font-size: .7rem; }
+    .section-content {
+      padding: 10px 12px; font-size: .8rem;
+      color: var(--text-2); line-height: 1.6;
+      display: none; border-top: 1px solid var(--border);
+    }
+    .section-content.open { display: block; }
+
+    /* Reason */
+    .reason-box {
+      background: var(--primary-lt); border: 1px solid var(--primary-bd);
+      border-radius: var(--radius-sm); padding: 10px 12px;
+      margin-bottom: 14px;
+    }
+    .reason-label {
+      font-size: .68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .6px; color: #3b82f6; margin-bottom: 4px;
+    }
+    .reason-text { font-size: .8rem; color: #1e40af; line-height: 1.5; }
+
+    /* Add button */
+    .add-btn {
+      width: 100%; padding: 9px;
+      background: var(--primary); color: #fff; border: none;
+      border-radius: var(--radius-sm); font-family: inherit;
+      font-size: .85rem; font-weight: 600; cursor: pointer;
+      transition: background .15s;
+    }
+    .add-btn:hover:not(:disabled) { background: var(--primary-dk); }
+    .add-btn.added { background: var(--gain); cursor: default; }
+    .add-btn:disabled { opacity: .75; }
+
+    /* ── WATCHLIST PAGE ─────────────────────────────── */
+
+    /* Summary cards */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+      gap: 12px; margin-bottom: 24px;
+    }
+    .summary-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px 18px;
+      box-shadow: var(--shadow);
+    }
+    .summary-label {
+      font-size: .7rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .5px; color: var(--text-3); margin-bottom: 6px;
+    }
+    .summary-value {
+      font-size: 1.35rem; font-weight: 800; color: var(--text);
+      line-height: 1.1;
+    }
+    .summary-value.gain-v { color: var(--gain); }
+    .summary-value.loss-v { color: var(--loss); }
+    .summary-sub { font-size: .72rem; color: var(--text-3); margin-top: 5px; }
+
+    /* Toolbar */
+    .toolbar {
+      display: flex; align-items: center;
+      justify-content: space-between; margin-bottom: 14px; gap: 10px;
+    }
+    .btn-primary {
+      padding: 9px 18px; background: var(--primary); color: #fff;
+      border: none; border-radius: var(--radius-sm); font-family: inherit;
+      font-size: .875rem; font-weight: 600; cursor: pointer; transition: background .15s;
+    }
+    .btn-primary:hover { background: var(--primary-dk); }
+    .btn-ghost {
+      padding: 8px 14px; background: transparent; color: var(--text-2);
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      font-family: inherit; font-size: .85rem; font-weight: 500;
+      cursor: pointer; transition: all .15s;
+    }
+    .btn-ghost:hover { background: var(--surface-2); }
+
+    /* Table */
+    .table-wrap {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+      box-shadow: var(--shadow); overflow-x: auto;
+    }
+    table { width: 100%; border-collapse: collapse; min-width: 750px; }
+    thead th {
+      background: var(--surface-2); padding: 10px 14px;
+      font-size: .7rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .4px; color: var(--text-3);
+      text-align: right; border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    thead th:first-child { text-align: left; }
+    tbody td {
+      padding: 13px 14px; font-size: .875rem;
+      border-bottom: 1px solid var(--border);
+      text-align: right; color: var(--text); vertical-align: middle;
+    }
+    tbody td:first-child { text-align: left; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: #fafcff; }
+
+    .stock-cell-ticker { font-weight: 700; font-size: .9rem; }
+    .stock-cell-name { font-size: .72rem; color: var(--text-3); margin-top: 2px; }
+
+    .gain-cell { color: var(--gain); font-weight: 600; }
+    .loss-cell { color: var(--loss); font-weight: 600; }
+    .na-cell { color: var(--text-3); }
+
+    .actions { display: flex; gap: 6px; justify-content: flex-end; }
+    .btn-sm {
+      padding: 5px 11px; border: 1px solid var(--border);
+      border-radius: 6px; background: transparent;
+      font-family: inherit; font-size: .75rem; font-weight: 500;
+      cursor: pointer; transition: all .15s; color: var(--text-2);
+    }
+    .btn-sm:hover { background: var(--surface-2); color: var(--text); }
+    .btn-sm.danger { color: var(--loss); border-color: var(--loss-bd); }
+    .btn-sm.danger:hover { background: var(--loss-bg); }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center; padding: 70px 24px;
+      color: var(--text-3);
+    }
+    .empty-icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .empty-state h3 { font-size: 1.05rem; color: var(--text-2); margin-bottom: 6px; }
+    .empty-state p { font-size: .85rem; }
+
+    /* ── MODAL ──────────────────────────────────────── */
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(15,23,42,.45);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200; padding: 16px;
+      visibility: hidden; opacity: 0; transition: opacity .2s, visibility .2s;
+    }
+    .overlay.open { visibility: visible; opacity: 1; }
+    .modal {
+      background: var(--surface); border-radius: var(--radius);
+      padding: 26px; width: 100%; max-width: 430px;
+      box-shadow: var(--shadow-lg);
+      transform: translateY(8px); transition: transform .2s;
+    }
+    .overlay.open .modal { transform: translateY(0); }
+    .modal-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 20px; }
+
+    .form-group { margin-bottom: 14px; }
+    .form-label {
+      display: block; font-size: .78rem; font-weight: 600;
+      color: var(--text-2); margin-bottom: 5px;
+    }
+    .form-hint { font-size: .7rem; color: var(--text-3); font-weight: 400; }
+    .form-input {
+      width: 100%; padding: 9px 12px;
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      font-family: inherit; font-size: .875rem; color: var(--text);
+      background: var(--surface); transition: border-color .15s, box-shadow .15s;
+    }
+    .form-input:focus {
+      outline: none; border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+    }
+    .form-input:disabled { background: var(--surface-2); color: var(--text-2); }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .modal-actions {
+      display: flex; gap: 8px; margin-top: 22px; justify-content: flex-end;
+    }
+
+    /* ── TOAST ──────────────────────────────────────── */
+    .toast-wrap {
+      position: fixed; bottom: 22px; right: 22px;
+      z-index: 300; display: flex; flex-direction: column; gap: 8px;
+      pointer-events: none;
+    }
+    .toast {
+      background: var(--text); color: #fff;
+      padding: 10px 16px; border-radius: var(--radius-sm);
+      font-size: .83rem; font-weight: 500;
+      box-shadow: var(--shadow-lg); max-width: 290px;
+      animation: slideUp .22s ease;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(10px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+
+    /* ── RESPONSIVE ─────────────────────────────────── */
+    @media (max-width: 640px) {
+      .header-inner { padding: 0 14px; }
+      .logo { font-size: 1.2rem; }
+      .header-meta { display: none; }
+      main { padding: 16px 12px; }
+      .cards-grid { grid-template-columns: 1fr; }
+      .summary-grid { grid-template-columns: 1fr 1fr; }
+      .nav-tab { padding: 7px 12px; font-size: .8rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════ HEADER ═══════════════════════ -->
+<header>
+  <div class="header-inner">
+    <div class="logo">Fu<span>Finds</span></div>
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-page="recommendations">Recommendations</button>
+      <button class="nav-tab" data-page="watchlist">
+        Watchlist <span id="wl-badge"></span>
+      </button>
+    </nav>
+    <div class="header-meta" id="header-meta">—</div>
+  </div>
+</header>
+
+<!-- ═══════════════════════ MAIN ═════════════════════════ -->
+<main>
+
+  <!-- ── PAGE 1: RECOMMENDATIONS ── -->
+  <section class="page active" id="page-recommendations">
+    <div class="page-header">
+      <h2>Today's Picks</h2>
+      <div class="live-badge"><div class="pulse"></div> Live prices</div>
+    </div>
+
+    <div class="market-section">
+      <div class="market-title">🇺🇸 US Markets</div>
+      <div class="cards-grid" id="us-grid"></div>
+    </div>
+
+    <div class="market-section">
+      <div class="market-title">🇸🇬 Singapore Markets</div>
+      <div class="cards-grid" id="sg-grid"></div>
+    </div>
+  </section>
+
+  <!-- ── PAGE 2: WATCHLIST ── -->
+  <section class="page" id="page-watchlist">
+    <div class="page-header">
+      <h2>My Watchlist</h2>
+      <button class="btn-ghost" id="btn-refresh">⟳ Refresh Prices</button>
+    </div>
+
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="summary-label">Market Value (USD)</div>
+        <div class="summary-value" id="sum-val-usd">—</div>
+        <div class="summary-sub" id="sum-val-usd-sub">US positions</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">Market Value (SGD)</div>
+        <div class="summary-value" id="sum-val-sgd">—</div>
+        <div class="summary-sub" id="sum-val-sgd-sub">SG positions</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">Total Gain / Loss</div>
+        <div class="summary-value" id="sum-gain">—</div>
+        <div class="summary-sub" id="sum-gain-sub">across positions</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">Holdings</div>
+        <div class="summary-value" id="sum-count">0</div>
+        <div class="summary-sub">tracked positions</div>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <button class="btn-primary" id="btn-add-stock">+ Add Stock</button>
+    </div>
+
+    <div id="wl-content"></div>
+  </section>
+
+</main>
+
+<!-- ═══════════════════════ MODAL ════════════════════════ -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">Add Stock</div>
+
+    <div class="form-group">
+      <label class="form-label">Ticker Symbol
+        <span class="form-hint">— e.g. AAPL, NVDA, D05.SI</span>
+      </label>
+      <input class="form-input" id="fi-ticker" placeholder="AAPL" autocomplete="off" />
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Company Name <span class="form-hint">— optional</span></label>
+      <input class="form-input" id="fi-company" placeholder="Auto-filled for known tickers" />
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Shares Owned</label>
+        <input class="form-input" id="fi-shares" type="number" min="0" step="0.001" placeholder="0" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Avg Buy Price</label>
+        <input class="form-input" id="fi-avg" type="number" min="0" step="0.01" placeholder="0.00" />
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-ghost" id="btn-modal-cancel">Cancel</button>
+      <button class="btn-primary" id="btn-modal-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ TOASTS ════════════════════════ -->
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<!-- ═══════════════════════ SCRIPT ════════════════════════ -->
+<script>
+'use strict';
+
+// ──────────────────────────────────────────────────────────
+//  RECOMMENDATION DATA
+// ──────────────────────────────────────────────────────────
+const RECS = [
+  // ── US ──────────────────────────────────────────────────
+  {
+    ticker: 'NVDA', company: 'NVIDIA Corporation',
+    market: 'NASDAQ', region: 'US', currency: 'USD', sector: 'Semiconductors',
+    news:
+      'NVIDIA reported record-breaking revenue driven by surging AI infrastructure spending. ' +
+      'Major cloud providers — AWS, Azure, Google Cloud — continue expanding Blackwell GPU orders at a rapid pace. ' +
+      'Data center revenue grew over 400% year-over-year, far ahead of analyst estimates.',
+    research:
+      'Overwhelmingly bullish analyst consensus with Buy/Strong Buy ratings across the board. ' +
+      'Price targets raised repeatedly on strong AI demand visibility. Gross margins expanding as Blackwell ramps. ' +
+      'CUDA ecosystem lock-in creates a durable competitive moat with no credible near-term rival.',
+    reason:
+      'Dominant position in the AI chip market. As AI scales from training to mass inference, NVIDIA captures both workloads. ' +
+      'A core holding in any technology-forward portfolio with a multi-year tailwind.'
+  },
+  {
+    ticker: 'MSFT', company: 'Microsoft Corporation',
+    market: 'NASDAQ', region: 'US', currency: 'USD', sector: 'Cloud & Software',
+    news:
+      'Azure cloud growth reaccelerated, consistently beating consensus estimates. ' +
+      'Copilot AI integrations across Microsoft 365 are driving subscription upgrades. ' +
+      'GitHub Copilot Enterprise is now widely adopted by Fortune 500 companies, adding meaningful ARR.',
+    research:
+      'Consensus Buy rating. Azure AI tailwind expected to sustain 25%+ cloud revenue growth. ' +
+      'Copilot monetisation adds a $10B+ incremental revenue opportunity. ' +
+      'Strong free cash flow generation supports continued buybacks and dividends.',
+    reason:
+      'Best-in-class AI monetisation story across cloud, productivity, and developer tools. ' +
+      'Azure is gaining hyperscaler market share while Copilot creates a new high-margin enterprise revenue stream. ' +
+      'Rare combination of defensive cash flows and high-growth AI exposure.'
+  },
+  {
+    ticker: 'AMZN', company: 'Amazon.com Inc.',
+    market: 'NASDAQ', region: 'US', currency: 'USD', sector: 'Cloud & E-Commerce',
+    news:
+      'AWS revenue growth reaccelerating to 17%+ as AI workloads migrate to cloud. ' +
+      'Amazon\'s advertising business is growing at 20%+ as brands shift digital budgets. ' +
+      'Cost-optimisation measures have structurally improved operating margins across all segments.',
+    research:
+      'Strong Buy consensus. AWS AI infrastructure investments are positioned to drive multi-year growth. ' +
+      'Advertising segment increasingly profitable with high incremental margins. ' +
+      'Prime ecosystem stickiness and expanding grocery/logistics moat remain strong.',
+    reason:
+      'Multi-engine growth story: AWS is the backbone of AI cloud infrastructure, ' +
+      'while advertising and the Prime flywheel provide durable consumer revenue. ' +
+      'Significant operating leverage is improving structurally — rising margins at scale.'
+  },
+  {
+    ticker: 'META', company: 'Meta Platforms Inc.',
+    market: 'NASDAQ', region: 'US', currency: 'USD', sector: 'Social Media & AI',
+    news:
+      'Meta\'s AI-driven ad targeting is delivering exceptional ROI for advertisers, driving 20%+ revenue growth. ' +
+      'Llama AI models are gaining enterprise adoption. Instagram Reels and WhatsApp monetisation are accelerating. ' +
+      'Ray-Ban smart glasses have surpassed sales expectations, validating the wearables strategy.',
+    research:
+      'Unanimous Buy rating from major banks. AI-improved ad systems directly compound revenue. ' +
+      'Massive user base (3B+ daily users) provides an unmatched data advantage for advertiser ROI. ' +
+      'Significant free cash flow generation funds continued AI investment and share repurchases.',
+    reason:
+      'The clearest AI-to-revenue conversion story in social media. ' +
+      'AI personalisation improvements translate directly into higher CPMs and advertiser spend efficiency. ' +
+      'Dominant global reach with multiple expanding monetisation vectors.'
+  },
+  {
+    ticker: 'GOOGL', company: 'Alphabet Inc.',
+    market: 'NASDAQ', region: 'US', currency: 'USD', sector: 'Technology',
+    news:
+      'Google Search AI Overviews launched globally with strong engagement metrics. ' +
+      'Google Cloud growth accelerating above 28% YoY, rapidly gaining enterprise AI workloads. ' +
+      'Gemini AI model integrated across all Google products. YouTube ad revenue reached an all-time high.',
+    research:
+      'Buy consensus. Search AI integration expected to sustain market leadership. ' +
+      'Google Cloud is the third hyperscaler closing the gap with AWS and Azure on AI services. ' +
+      'Attractive valuation relative to peers on a PE-to-growth basis.',
+    reason:
+      'Undervalued relative to peers on AI repositioning. ' +
+      'Dominant search moat is augmented rather than threatened by AI, and Google Cloud is a high-conviction growth driver. ' +
+      'Massive optionality through Android, YouTube, and Waymo.'
+  },
+  // ── SG ──────────────────────────────────────────────────
+  {
+    ticker: 'D05.SI', company: 'DBS Group Holdings',
+    market: 'SGX', region: 'SG', currency: 'SGD', sector: 'Banking',
+    news:
+      'DBS posted record net profit driven by higher net interest margins and strong wealth management fee income. ' +
+      'Digital banking initiatives are driving cost efficiency and customer acquisition in Singapore and Hong Kong. ' +
+      'Expanded presence in India and China high-net-worth wealth management segments.',
+    research:
+      'Top pick among Singapore banks. Highest ROE among SG banks at ~18%. ' +
+      'Dividend yield of 5%+ with the possibility of further special dividends. ' +
+      'Strong CET1 capital position well above regulatory requirements.',
+    reason:
+      'Singapore\'s most digitally innovative bank with the highest profitability metrics. ' +
+      'Consistent dividend growth, robust capital returns, and regional expansion into high-growth Asian wealth ' +
+      'management make DBS a compelling blue-chip anchor holding.'
+  },
+  {
+    ticker: 'O39.SI', company: 'OCBC Bank',
+    market: 'SGX', region: 'SG', currency: 'SGD', sector: 'Banking',
+    news:
+      'OCBC reported strong earnings with Great Eastern Life fully integrated post-privatisation. ' +
+      'Wealth management assets under management crossed the S$300B milestone. ' +
+      'Indonesia retail banking operations showing robust growth in deposits and loans.',
+    research:
+      'Buy rated by most major analysts. Attractive dividend yield of 5–6%. ' +
+      'Post-GEL privatisation, insurance earnings are more transparent and consistently profitable. ' +
+      'Strong capital buffer supports further buybacks or dividend increases.',
+    reason:
+      'Compelling value play with a high and sustainable dividend yield. ' +
+      'The Great Eastern acquisition enhances insurance income streams, and broad ASEAN exposure ' +
+      'provides diversified growth well beyond the Singapore domestic market.'
+  },
+  {
+    ticker: 'C6L.SI', company: 'Singapore Airlines',
+    market: 'SGX', region: 'SG', currency: 'SGD', sector: 'Aviation',
+    news:
+      'SIA achieved its highest-ever passenger load factor, with premium cabins consistently full on key routes. ' +
+      'Long-haul cargo is recovering on the back of e-commerce growth. ' +
+      'Scoot low-cost operations expanding rapidly across Southeast Asia.',
+    research:
+      'Analyst consensus improving to Buy. Strong demand for premium international travel with no near-term slowdown. ' +
+      'Fuel cost stabilisation supports margin expansion. ' +
+      'SIA\'s brand premium allows yield management that consistently outperforms peers.',
+    reason:
+      'As one of the world\'s highest-rated airlines, SIA captures premium travel demand recovery. ' +
+      'Singapore\'s strategic position as an aviation hub, combined with strong business and leisure demand, ' +
+      'supports resilient earnings and an attractive dividend.'
+  },
+  {
+    ticker: 'Z74.SI', company: 'Singapore Telecommunications',
+    market: 'SGX', region: 'SG', currency: 'SGD', sector: 'Telecommunications',
+    news:
+      'SingTel\'s associate Bharti Airtel in India continues delivering strong subscriber growth and ARPU improvement. ' +
+      'NCS IT services division is winning major government and enterprise contracts in Singapore and Australia. ' +
+      '5G network rollout in Singapore is over 90% complete.',
+    research:
+      'Improving Buy sentiment. Bharti Airtel stake alone represents a significant portion of SingTel\'s market cap. ' +
+      'Digital infrastructure and NCS growing above market rates. ' +
+      'Dividend policy under review with potential for an increase.',
+    reason:
+      'Compelling sum-of-parts value story. The Bharti Airtel stake provides high-quality India exposure, ' +
+      'while NCS delivers enterprise digital growth. SingTel\'s 5G infrastructure positions it well ' +
+      'for B2B IoT and enterprise monetisation ahead.'
+  },
+  {
+    ticker: 'U11.SI', company: 'United Overseas Bank',
+    market: 'SGX', region: 'SG', currency: 'SGD', sector: 'Banking',
+    news:
+      'UOB completed the integration of Citigroup\'s ASEAN retail operations ahead of schedule, ' +
+      'significantly expanding its customer base in Thailand, Malaysia, Indonesia, and Vietnam. ' +
+      'Wholesale banking income grew strongly across the ASEAN corridor.',
+    research:
+      'Buy rated by most analysts. Citi portfolio integration synergies ahead of schedule. ' +
+      'ASEAN franchise substantially larger with meaningful cross-sell opportunities. ' +
+      'Consistent dividend payer with a 5%+ yield and improving capital returns.',
+    reason:
+      'The premier ASEAN-focused bank. The Citigroup acquisition transformed UOB into a major regional player ' +
+      'across Southeast Asia\'s fast-growing economies — directly benefiting from rising trade flows ' +
+      'and expanding middle-class wealth in the region.'
+  }
+];
+
+// ──────────────────────────────────────────────────────────
+//  STATE
+// ──────────────────────────────────────────────────────────
+let watchlist = JSON.parse(localStorage.getItem('fufinds_wl') || '[]');
+let prices    = {};      // { symbol: { price, change, changePct, currency } }
+let editId    = null;
+let autoTimer = null;
+
+// ──────────────────────────────────────────────────────────
+//  PRICE FETCHING  (Yahoo Finance via corsproxy.io)
+// ──────────────────────────────────────────────────────────
+const PROXY = 'https://corsproxy.io/?url=';
+const YF    = 'https://query2.finance.yahoo.com/v8/finance/chart/';
+
+async function fetchPrice(symbol) {
+  const url = YF + encodeURIComponent(symbol) + '?interval=1d&range=1d&includePrePost=false';
+  try {
+    const res  = await fetch(PROXY + encodeURIComponent(url), { signal: AbortSignal.timeout(9000) });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const meta = json?.chart?.result?.[0]?.meta;
+    if (!meta) return null;
+    const price = meta.regularMarketPrice;
+    const prev  = meta.chartPreviousClose ?? meta.previousClose ?? price;
+    const chg   = price - prev;
+    const pct   = prev > 0 ? (chg / prev) * 100 : 0;
+    return { price, change: chg, changePct: pct, currency: meta.currency ?? 'USD' };
+  } catch { return null; }
+}
+
+async function loadPrices(symbols) {
+  const results = await Promise.allSettled(symbols.map(s => fetchPrice(s)));
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled' && r.value) prices[symbols[i]] = r.value;
+  });
+  const now = new Date().toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' });
+  document.getElementById('header-meta').textContent = 'Updated ' + now;
+}
+
+// ──────────────────────────────────────────────────────────
+//  FORMAT HELPERS
+// ──────────────────────────────────────────────────────────
+function fmtCur(val, cur = 'USD') {
+  if (val == null || isNaN(val)) return '—';
+  return new Intl.NumberFormat(cur === 'SGD' ? 'en-SG' : 'en-US', {
+    style: 'currency', currency: cur,
+    minimumFractionDigits: 2, maximumFractionDigits: 2
+  }).format(val);
+}
+
+function fmtPct(val) {
+  if (val == null || isNaN(val)) return '';
+  return (val >= 0 ? '+' : '') + val.toFixed(2) + '%';
+}
+
+function fmtNum(val) {
+  if (!val && val !== 0) return '—';
+  return Number(val).toLocaleString('en', { maximumFractionDigits: 3 });
+}
+
+// ──────────────────────────────────────────────────────────
+//  RECOMMENDATIONS PAGE
+// ──────────────────────────────────────────────────────────
+function renderRecs() {
+  const usGrid = document.getElementById('us-grid');
+  const sgGrid = document.getElementById('sg-grid');
+  usGrid.innerHTML = '';
+  sgGrid.innerHTML = '';
+  RECS.forEach(r => {
+    (r.region === 'US' ? usGrid : sgGrid).appendChild(buildCard(r));
+  });
+}
+
+function buildCard(r) {
+  const pd      = prices[r.ticker];
+  const inWL    = watchlist.some(w => w.ticker === r.ticker);
+  const dispTkr = r.ticker.replace('.SI', '');
+  const isSG    = r.region === 'SG';
+
+  const priceHtml = pd
+    ? `<div class="current-price">${fmtCur(pd.price, r.currency)}</div>
+       <div class="price-change ${pd.change >= 0 ? 'up' : 'down'}">
+         ${pd.change >= 0 ? '+' : ''}${fmtCur(pd.change, r.currency)} (${fmtPct(pd.changePct)})
+       </div>`
+    : `<div class="loading-dot">Fetching…</div>`;
+
+  const el = document.createElement('div');
+  el.className = 'stock-card';
+  el.dataset.ticker = r.ticker;
+  el.innerHTML = `
+    <div class="card-header">
+      <div class="card-left">
+        <div class="ticker-badge ${isSG ? 'sg-badge' : ''}">${dispTkr}</div>
+        <div>
+          <div class="company-name">${r.company}</div>
+          <div class="market-pill">${r.market} · ${r.sector}</div>
+        </div>
+      </div>
+      <div class="price-block">${priceHtml}</div>
+    </div>
+
+    <div class="card-sections">
+      <div class="card-section">
+        <button class="section-toggle" onclick="toggleSec(this)">
+          <span>📰 News</span><span class="toggle-arrow">▾</span>
+        </button>
+        <div class="section-content">${r.news}</div>
+      </div>
+      <div class="card-section">
+        <button class="section-toggle" onclick="toggleSec(this)">
+          <span>📊 Analyst Research</span><span class="toggle-arrow">▾</span>
+        </button>
+        <div class="section-content">${r.research}</div>
+      </div>
+    </div>
+
+    <div class="reason-box">
+      <div class="reason-label">Why Now</div>
+      <div class="reason-text">${r.reason}</div>
+    </div>
+
+    <button class="add-btn${inWL ? ' added' : ''}"
+            onclick="addToWL('${r.ticker}')"
+            ${inWL ? 'disabled' : ''}>
+      ${inWL ? '✓ In Watchlist' : '+ Add to Watchlist'}
+    </button>`;
+  return el;
+}
+
+function toggleSec(btn) {
+  const content = btn.nextElementSibling;
+  const arrow   = btn.querySelector('.toggle-arrow');
+  const open    = content.classList.toggle('open');
+  arrow.style.transform = open ? 'rotate(180deg)' : '';
+}
+
+function refreshCardPrices() {
+  RECS.forEach(r => {
+    const card = document.querySelector(`.stock-card[data-ticker="${r.ticker}"]`);
+    if (!card) return;
+    const pd = prices[r.ticker];
+    if (!pd) return;
+    const pb = card.querySelector('.price-block');
+    pb.innerHTML = `
+      <div class="current-price">${fmtCur(pd.price, r.currency)}</div>
+      <div class="price-change ${pd.change >= 0 ? 'up' : 'down'}">
+        ${pd.change >= 0 ? '+' : ''}${fmtCur(pd.change, r.currency)} (${fmtPct(pd.changePct)})
+      </div>`;
+  });
+}
+
+// ──────────────────────────────────────────────────────────
+//  WATCHLIST PAGE
+// ──────────────────────────────────────────────────────────
+function renderWL() {
+  const badge = document.getElementById('wl-badge');
+  badge.textContent = watchlist.length > 0 ? `(${watchlist.length})` : '';
+
+  updateSummary();
+
+  const container = document.getElementById('wl-content');
+  if (watchlist.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">📋</div>
+        <h3>Your watchlist is empty</h3>
+        <p>Add stocks from Recommendations, or click <strong>+ Add Stock</strong> to track any ticker.</p>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Stock</th>
+            <th>Live Price</th>
+            <th>Shares Owned</th>
+            <th>Avg Buy Price</th>
+            <th>Cost Basis</th>
+            <th>Market Value</th>
+            <th>Gain / Loss</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${watchlist.map(buildRow).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function buildRow(item) {
+  const cur  = item.currency || (item.ticker.endsWith('.SI') ? 'SGD' : 'USD');
+  const pd   = prices[item.ticker];
+  const shrs = parseFloat(item.shares)   || 0;
+  const avg  = parseFloat(item.avgPrice) || 0;
+
+  const cost  = shrs > 0 && avg > 0 ? shrs * avg : null;
+  const mktV  = pd && shrs > 0 ? shrs * pd.price : null;
+  const gl    = mktV != null && cost != null ? mktV - cost : null;
+  const glPct = gl != null && cost > 0 ? (gl / cost) * 100 : null;
+
+  const glClass = gl == null ? 'na-cell' : gl >= 0 ? 'gain-cell' : 'loss-cell';
+  const glText  = gl != null
+    ? `${fmtCur(gl, cur)} <small>(${fmtPct(glPct)})</small>`
+    : '<span class="na-cell">—</span>';
+
+  const priceCell = pd
+    ? `<div>${fmtCur(pd.price, cur)}</div>
+       <div style="font-size:.72rem;color:${pd.change >= 0 ? 'var(--gain)' : 'var(--loss)'}">
+         ${fmtPct(pd.changePct)}
+       </div>`
+    : `<span style="color:var(--text-3)">Fetching…</span>`;
+
+  const dispTkr = item.ticker.replace('.SI', '');
+  const mktLbl  = item.ticker.endsWith('.SI') ? ' <small style="font-size:.65rem;color:var(--text-3)">SGX</small>' : '';
+
+  return `
+    <tr>
+      <td>
+        <div class="stock-cell-ticker">${dispTkr}${mktLbl}</div>
+        <div class="stock-cell-name">${item.company || '—'}</div>
+      </td>
+      <td>${priceCell}</td>
+      <td>${shrs > 0 ? fmtNum(shrs) : '<span class="na-cell">—</span>'}</td>
+      <td>${avg  > 0 ? fmtCur(avg, cur) : '<span class="na-cell">—</span>'}</td>
+      <td>${cost != null ? fmtCur(cost, cur) : '<span class="na-cell">—</span>'}</td>
+      <td>${mktV != null ? fmtCur(mktV, cur) : '<span class="na-cell">—</span>'}</td>
+      <td class="${glClass}">${glText}</td>
+      <td>
+        <div class="actions">
+          <button class="btn-sm" onclick="editItem('${item.id}')">Edit</button>
+          <button class="btn-sm danger" onclick="delItem('${item.id}')">Delete</button>
+        </div>
+      </td>
+    </tr>`;
+}
+
+function updateSummary() {
+  let usdVal = 0, usdCost = 0, usdHasV = false, usdHasC = false;
+  let sgdVal = 0, sgdCost = 0, sgdHasV = false, sgdHasC = false;
+
+  watchlist.forEach(item => {
+    const cur  = item.currency || (item.ticker.endsWith('.SI') ? 'SGD' : 'USD');
+    const pd   = prices[item.ticker];
+    const shrs = parseFloat(item.shares)   || 0;
+    const avg  = parseFloat(item.avgPrice) || 0;
+    const cost = shrs * avg;
+    const isSG = cur === 'SGD';
+
+    if (cost > 0) {
+      if (isSG) { sgdCost += cost; sgdHasC = true; }
+      else       { usdCost += cost; usdHasC = true; }
+    }
+    if (pd && shrs > 0) {
+      const mv = shrs * pd.price;
+      if (isSG) { sgdVal += mv; sgdHasV = true; }
+      else       { usdVal += mv; usdHasV = true; }
+    }
+  });
+
+  const setEl = (id, text, cls) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    el.className   = 'summary-value' + (cls ? ' ' + cls : '');
+  };
+
+  setEl('sum-val-usd', usdHasV ? fmtCur(usdVal, 'USD') : '—');
+  setEl('sum-val-sgd', sgdHasV ? fmtCur(sgdVal, 'SGD') : '—');
+
+  const usdGL = usdHasV && usdHasC ? usdVal - usdCost : null;
+  const sgdGL = sgdHasV && sgdHasC ? sgdVal - sgdCost : null;
+
+  if (usdGL != null || sgdGL != null) {
+    const parts = [];
+    if (usdGL != null) parts.push((usdGL >= 0 ? '+' : '') + fmtCur(usdGL, 'USD'));
+    if (sgdGL != null) parts.push((sgdGL >= 0 ? '+' : '') + fmtCur(sgdGL, 'SGD'));
+    const gainText = parts.join(' / ');
+    const allPos   = (usdGL ?? 0) >= 0 && (sgdGL ?? 0) >= 0;
+    const allNeg   = (usdGL ?? 0) <= 0 && (sgdGL ?? 0) <= 0;
+    setEl('sum-gain', gainText, allPos ? 'gain-v' : allNeg ? 'loss-v' : '');
+    document.getElementById('sum-gain-sub').textContent = 'vs cost basis';
+  } else {
+    setEl('sum-gain', '—');
+    document.getElementById('sum-gain-sub').textContent = 'enter shares & buy price';
+  }
+
+  document.getElementById('sum-count').textContent = watchlist.length;
+}
+
+// ──────────────────────────────────────────────────────────
+//  WATCHLIST ACTIONS
+// ──────────────────────────────────────────────────────────
+function addToWL(ticker) {
+  if (watchlist.some(w => w.ticker === ticker)) {
+    toast(ticker.replace('.SI', '') + ' is already in your watchlist');
+    return;
+  }
+  const rec = RECS.find(r => r.ticker === ticker);
+  watchlist.push({
+    id:       Date.now().toString(),
+    ticker,
+    company:  rec?.company || '',
+    shares:   '',
+    avgPrice: '',
+    currency: ticker.endsWith('.SI') ? 'SGD' : 'USD',
+    addedAt:  new Date().toISOString()
+  });
+  saveWL();
+
+  const card = document.querySelector(`.stock-card[data-ticker="${ticker}"]`);
+  if (card) {
+    const btn = card.querySelector('.add-btn');
+    btn.textContent = '✓ In Watchlist';
+    btn.classList.add('added');
+    btn.disabled = true;
+  }
+  toast(ticker.replace('.SI', '') + ' added to watchlist');
+
+  if (document.getElementById('page-watchlist').classList.contains('active')) {
+    renderWL();
+    refreshWLPrices();
+  }
+}
+
+function editItem(id) {
+  const item = watchlist.find(w => w.id === id);
+  if (!item) return;
+  editId = id;
+  document.getElementById('modal-title').textContent = 'Edit ' + item.ticker.replace('.SI', '');
+  const ti = document.getElementById('fi-ticker');
+  ti.value    = item.ticker;
+  ti.disabled = true;
+  document.getElementById('fi-company').value = item.company   || '';
+  document.getElementById('fi-shares').value  = item.shares    || '';
+  document.getElementById('fi-avg').value     = item.avgPrice  || '';
+  openModal();
+}
+
+function delItem(id) {
+  const item = watchlist.find(w => w.id === id);
+  if (!item) return;
+  watchlist = watchlist.filter(w => w.id !== id);
+  saveWL();
+  renderWL();
+
+  const card = document.querySelector(`.stock-card[data-ticker="${item.ticker}"]`);
+  if (card) {
+    const btn = card.querySelector('.add-btn');
+    btn.textContent = '+ Add to Watchlist';
+    btn.classList.remove('added');
+    btn.disabled = false;
+  }
+  toast(item.ticker.replace('.SI', '') + ' removed');
+}
+
+function saveWL() {
+  localStorage.setItem('fufinds_wl', JSON.stringify(watchlist));
+}
+
+// ──────────────────────────────────────────────────────────
+//  MODAL
+// ──────────────────────────────────────────────────────────
+function openModal(forNew = false) {
+  if (forNew) {
+    editId = null;
+    document.getElementById('modal-title').textContent = 'Add Stock';
+    const ti = document.getElementById('fi-ticker');
+    ti.value    = '';
+    ti.disabled = false;
+    document.getElementById('fi-company').value = '';
+    document.getElementById('fi-shares').value  = '';
+    document.getElementById('fi-avg').value     = '';
+  }
+  document.getElementById('overlay').classList.add('open');
+  setTimeout(() => document.getElementById('fi-ticker').focus(), 60);
+}
+
+function closeModal() {
+  document.getElementById('overlay').classList.remove('open');
+  editId = null;
+}
+
+function saveModal() {
+  const ticker  = document.getElementById('fi-ticker').value.trim().toUpperCase();
+  const company = document.getElementById('fi-company').value.trim();
+  const shares  = document.getElementById('fi-shares').value.trim();
+  const avg     = document.getElementById('fi-avg').value.trim();
+
+  if (!ticker) { toast('Please enter a ticker symbol'); return; }
+
+  if (editId) {
+    const item = watchlist.find(w => w.id === editId);
+    if (item) {
+      item.company  = company || item.company;
+      item.shares   = shares;
+      item.avgPrice = avg;
+    }
+  } else {
+    if (watchlist.some(w => w.ticker === ticker)) {
+      toast(ticker + ' is already in your watchlist');
+      closeModal();
+      return;
+    }
+    const rec = RECS.find(r => r.ticker === ticker);
+    watchlist.push({
+      id:       Date.now().toString(),
+      ticker,
+      company:  company || rec?.company || '',
+      shares,
+      avgPrice: avg,
+      currency: ticker.endsWith('.SI') ? 'SGD' : 'USD',
+      addedAt:  new Date().toISOString()
+    });
+  }
+
+  saveWL();
+  closeModal();
+  renderWL();
+  refreshWLPrices();
+  toast(editId ? 'Position updated' : ticker + ' added');
+}
+
+// ──────────────────────────────────────────────────────────
+//  TOAST
+// ──────────────────────────────────────────────────────────
+function toast(msg) {
+  const wrap = document.getElementById('toast-wrap');
+  const el   = document.createElement('div');
+  el.className   = 'toast';
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+// ──────────────────────────────────────────────────────────
+//  PRICE REFRESH HELPERS
+// ──────────────────────────────────────────────────────────
+async function refreshRecPrices() {
+  await loadPrices(RECS.map(r => r.ticker));
+  refreshCardPrices();
+}
+
+async function refreshWLPrices() {
+  if (!watchlist.length) return;
+  const syms = [...new Set(watchlist.map(w => w.ticker))];
+  await loadPrices(syms);
+  renderWL();
+}
+
+async function refreshActive() {
+  if (document.getElementById('page-recommendations').classList.contains('active')) {
+    await refreshRecPrices();
+  } else {
+    await refreshWLPrices();
+  }
+}
+
+// ──────────────────────────────────────────────────────────
+//  NAVIGATION
+// ──────────────────────────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelector(`[data-page="${name}"]`).classList.add('active');
+
+  if (name === 'watchlist') { renderWL(); refreshWLPrices(); }
+  else                      { refreshCardPrices(); }
+}
+
+// ──────────────────────────────────────────────────────────
+//  INIT
+// ──────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  renderRecs();
+  refreshRecPrices();
+
+  autoTimer = setInterval(refreshActive, 60_000);
+
+  // Nav
+  document.querySelectorAll('.nav-tab').forEach(tab => {
+    tab.addEventListener('click', () => showPage(tab.dataset.page));
+  });
+
+  // Watchlist buttons
+  document.getElementById('btn-add-stock').addEventListener('click', () => openModal(true));
+  document.getElementById('btn-refresh').addEventListener('click', () => {
+    refreshWLPrices();
+    toast('Refreshing prices…');
+  });
+
+  // Modal
+  document.getElementById('btn-modal-cancel').addEventListener('click', closeModal);
+  document.getElementById('btn-modal-save').addEventListener('click', saveModal);
+  document.getElementById('overlay').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeModal();
+  });
+
+  // Keyboard
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeModal();
+    if (e.key === 'Enter' && document.getElementById('overlay').classList.contains('open')) saveModal();
+  });
+});
+</script>
+</body>
+</html>
