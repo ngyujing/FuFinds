@@ -4,6 +4,75 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FuFinds — Stock Dashboard</title>
+
+  <!-- Icons & PWA -->
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/png" sizes="180x180" id="icon-png">
+  <link rel="apple-touch-icon" sizes="180x180" id="apple-touch-icon">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="FuFinds">
+
+  <!-- Generate PNG icon via canvas (apple-touch-icon + PNG fallback) -->
+  <script>
+  (function () {
+    const SZ = 180, R = 36;
+    const c = document.createElement('canvas');
+    c.width = c.height = SZ;
+    const ctx = c.getContext('2d');
+
+    // Rounded-rect clip
+    ctx.beginPath();
+    ctx.moveTo(R, 0); ctx.lineTo(SZ - R, 0);
+    ctx.arcTo(SZ, 0, SZ, R, R);
+    ctx.lineTo(SZ, SZ - R);
+    ctx.arcTo(SZ, SZ, SZ - R, SZ, R);
+    ctx.lineTo(R, SZ);
+    ctx.arcTo(0, SZ, 0, SZ - R, R);
+    ctx.lineTo(0, R);
+    ctx.arcTo(0, 0, R, 0, R);
+    ctx.closePath();
+
+    const g = ctx.createLinearGradient(0, 0, SZ, SZ);
+    g.addColorStop(0, '#3b82f6');
+    g.addColorStop(1, '#1d4ed8');
+    ctx.fillStyle = g;
+    ctx.fill();
+
+    // Bold "F"
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 108px "Arial Black", Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('F', 90, 92);
+
+    // Green trend line
+    const pts = [[100, 128], [120, 97], [142, 110], [166, 78]];
+    ctx.beginPath();
+    ctx.moveTo(...pts[0]);
+    pts.slice(1).forEach(p => ctx.lineTo(...p));
+    ctx.strokeStyle = '#4ade80';
+    ctx.lineWidth = 8.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+
+    // Dot at peak
+    ctx.fillStyle = '#4ade80';
+    ctx.beginPath();
+    ctx.arc(166, 78, 7, 0, 2 * Math.PI);
+    ctx.fill();
+
+    const png = c.toDataURL('image/png');
+    const ati = document.getElementById('apple-touch-icon');
+    if (ati) ati.href = png;
+    const ipng = document.getElementById('icon-png');
+    if (ipng) ipng.href = png;
+  })();
+  </script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
