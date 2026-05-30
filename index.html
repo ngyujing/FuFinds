@@ -4,8 +4,78 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FuFinds — Stock Dashboard</title>
+
+  <!-- Icons & PWA -->
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/png" sizes="180x180" id="icon-png">
+  <link rel="apple-touch-icon" sizes="180x180" id="apple-touch-icon">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="FuFinds">
+
+  <!-- Generate PNG icon via canvas (apple-touch-icon + PNG fallback) -->
+  <script>
+  (function () {
+    const SZ = 180, R = 36;
+    const c = document.createElement('canvas');
+    c.width = c.height = SZ;
+    const ctx = c.getContext('2d');
+
+    // Rounded-rect clip
+    ctx.beginPath();
+    ctx.moveTo(R, 0); ctx.lineTo(SZ - R, 0);
+    ctx.arcTo(SZ, 0, SZ, R, R);
+    ctx.lineTo(SZ, SZ - R);
+    ctx.arcTo(SZ, SZ, SZ - R, SZ, R);
+    ctx.lineTo(R, SZ);
+    ctx.arcTo(0, SZ, 0, SZ - R, R);
+    ctx.lineTo(0, R);
+    ctx.arcTo(0, 0, R, 0, R);
+    ctx.closePath();
+
+    const g = ctx.createLinearGradient(0, 0, SZ, SZ);
+    g.addColorStop(0, '#3b82f6');
+    g.addColorStop(1, '#1d4ed8');
+    ctx.fillStyle = g;
+    ctx.fill();
+
+    // Bold "F"
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 108px "Arial Black", Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('F', 90, 92);
+
+    // Green trend line
+    const pts = [[100, 128], [120, 97], [142, 110], [166, 78]];
+    ctx.beginPath();
+    ctx.moveTo(...pts[0]);
+    pts.slice(1).forEach(p => ctx.lineTo(...p));
+    ctx.strokeStyle = '#4ade80';
+    ctx.lineWidth = 8.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+
+    // Dot at peak
+    ctx.fillStyle = '#4ade80';
+    ctx.beginPath();
+    ctx.arc(166, 78, 7, 0, 2 * Math.PI);
+    ctx.fill();
+
+    const png = c.toDataURL('image/png');
+    const ati = document.getElementById('apple-touch-icon');
+    if (ati) ati.href = png;
+    const ipng = document.getElementById('icon-png');
+    if (ipng) ipng.href = png;
+  })();
+  </script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -92,7 +162,7 @@
 
     .page-header {
       display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 24px; gap: 12px; flex-wrap: wrap;
+      margin-bottom: 20px; gap: 12px; flex-wrap: wrap;
     }
     .page-header h2 { font-size: 1.5rem; font-weight: 700; }
 
@@ -108,6 +178,91 @@
       animation: pulse 2s infinite;
     }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+    /* ── HORIZON BAR ────────────────────────────────── */
+    .horizon-bar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      margin-bottom: 24px;
+      display: flex; align-items: center;
+      justify-content: space-between;
+      gap: 14px; flex-wrap: wrap;
+      box-shadow: var(--shadow);
+    }
+    .horizon-left {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .horizon-view-label {
+      font-size: .72rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .5px;
+      color: var(--text-3); white-space: nowrap;
+    }
+    .select-wrap {
+      position: relative; display: inline-flex; align-items: center;
+    }
+    .select-wrap::after {
+      content: '▾';
+      position: absolute; right: 12px;
+      font-size: .65rem; color: var(--primary);
+      pointer-events: none;
+    }
+    .horizon-select {
+      -webkit-appearance: none; appearance: none;
+      background: var(--primary-lt);
+      border: 1.5px solid var(--primary-bd);
+      border-radius: var(--radius-sm);
+      padding: 8px 34px 8px 14px;
+      font-family: inherit; font-size: .875rem; font-weight: 700;
+      color: var(--primary); cursor: pointer;
+      transition: border-color .15s, box-shadow .15s;
+      min-width: 200px;
+    }
+    .horizon-select:hover { border-color: var(--primary); }
+    .horizon-select:focus {
+      outline: none; border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+    }
+    .horizon-right {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    }
+    .horizon-sub-text {
+      font-size: .78rem; color: var(--text-3);
+    }
+    .horizon-time {
+      font-size: .72rem; color: var(--text-3);
+      font-style: italic; white-space: nowrap;
+    }
+    .btn-refresh-picks {
+      padding: 6px 12px; background: transparent;
+      color: var(--text-2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); font-family: inherit;
+      font-size: .78rem; font-weight: 600; cursor: pointer;
+      transition: all .15s; white-space: nowrap;
+    }
+    .btn-refresh-picks:hover { background: var(--surface-2); color: var(--primary); }
+    .btn-refresh-picks:disabled { opacity: .45; cursor: not-allowed; }
+
+    /* ── LOADING STATE ──────────────────────────────── */
+    .picks-loading {
+      text-align: center; padding: 80px 24px;
+      display: none;
+    }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-msg {
+      font-size: .9rem; font-weight: 600;
+      color: var(--text-2); margin-bottom: 5px;
+    }
+    .loading-sub { font-size: .78rem; color: var(--text-3); }
 
     /* ── SECTION TITLES ─────────────────────────────── */
     .market-section { margin-bottom: 36px; }
@@ -130,12 +285,12 @@
     }
     .stock-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-1px); }
 
-    /* Card header */
     .card-header {
       display: flex; align-items: flex-start;
       justify-content: space-between; gap: 10px; margin-bottom: 14px;
     }
-    .card-left { display: flex; align-items: flex-start; gap: 10px; }
+    .card-left { display: flex; align-items: flex-start; gap: 10px; flex: 1; min-width: 0; }
+    .card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
     .ticker-badge {
       background: var(--primary); color: #fff;
       font-size: .78rem; font-weight: 700;
@@ -148,11 +303,9 @@
     }
     .market-pill { font-size: .72rem; color: var(--text-3); margin-top: 3px; }
 
-    .price-block { text-align: right; flex-shrink: 0; }
+    .price-block { text-align: right; }
     .current-price { font-size: 1.05rem; font-weight: 700; color: var(--text); }
-    .price-change {
-      font-size: .75rem; font-weight: 600; margin-top: 2px;
-    }
+    .price-change { font-size: .75rem; font-weight: 600; margin-top: 2px; }
     .up { color: var(--gain); }
     .down { color: var(--loss); }
     .loading-dot {
@@ -160,6 +313,18 @@
       animation: blink 1.4s infinite;
     }
     @keyframes blink { 0%,100%{opacity:.4} 50%{opacity:1} }
+
+    /* Signal chip */
+    .signal-chip {
+      font-size: .62rem; font-weight: 800;
+      padding: 2px 8px; border-radius: 20px;
+      border: 1.5px solid; text-transform: uppercase; letter-spacing: .4px;
+      white-space: nowrap;
+    }
+    .sig-strong { color: #14532d; background: #dcfce7; border-color: #86efac; }
+    .sig-buy    { color: var(--primary-dk); background: var(--primary-lt); border-color: var(--primary-bd); }
+    .sig-watch  { color: #92400e; background: #fef3c7; border-color: #fde68a; }
+    .sig-caution{ color: var(--loss); background: var(--loss-bg); border-color: var(--loss-bd); }
 
     /* Collapsible sections */
     .card-sections { margin-bottom: 12px; }
@@ -184,7 +349,15 @@
     }
     .section-content.open { display: block; }
 
-    /* Reason */
+    /* Live news items */
+    .news-item {
+      padding: 5px 0; border-bottom: 1px solid var(--border);
+    }
+    .news-item:last-child { border-bottom: none; padding-bottom: 0; }
+    .news-title { font-size: .8rem; color: var(--text); font-weight: 500; line-height: 1.4; }
+    .news-meta  { font-size: .7rem; color: var(--text-3); margin-top: 2px; }
+
+    /* Reason box */
     .reason-box {
       background: var(--primary-lt); border: 1px solid var(--primary-bd);
       border-radius: var(--radius-sm); padding: 10px 12px;
@@ -209,8 +382,6 @@
     .add-btn:disabled { opacity: .75; }
 
     /* ── WATCHLIST PAGE ─────────────────────────────── */
-
-    /* Summary cards */
     .summary-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
@@ -233,7 +404,6 @@
     .summary-value.loss-v { color: var(--loss); }
     .summary-sub { font-size: .72rem; color: var(--text-3); margin-top: 5px; }
 
-    /* Toolbar */
     .toolbar {
       display: flex; align-items: center;
       justify-content: space-between; margin-bottom: 14px; gap: 10px;
@@ -252,7 +422,6 @@
     }
     .btn-ghost:hover { background: var(--surface-2); }
 
-    /* Table */
     .table-wrap {
       background: var(--surface); border: 1px solid var(--border);
       border-radius: var(--radius); overflow: hidden;
@@ -294,7 +463,6 @@
     .btn-sm.danger { color: var(--loss); border-color: var(--loss-bd); }
     .btn-sm.danger:hover { background: var(--loss-bg); }
 
-    /* Empty state */
     .empty-state {
       text-align: center; padding: 70px 24px;
       color: var(--text-3);
@@ -371,7 +539,80 @@
       .cards-grid { grid-template-columns: 1fr; }
       .summary-grid { grid-template-columns: 1fr 1fr; }
       .nav-tab { padding: 7px 12px; font-size: .8rem; }
+      .horizon-bar { gap: 10px; }
+      .horizon-select { min-width: 160px; }
+      .horizon-sub-text { display: none; }
     }
+
+    /* ── INTERVAL BUTTONS ───────────────────────────────── */
+    .interval-bar { display: flex; gap: 4px; flex-wrap: wrap; }
+    .interval-btn {
+      padding: 5px 11px; background: transparent;
+      border: 1px solid var(--border); border-radius: 6px;
+      font-family: inherit; font-size: .72rem; font-weight: 600;
+      color: var(--text-2); cursor: pointer; transition: all .15s; white-space: nowrap;
+    }
+    .interval-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .interval-btn:hover:not(.active) { background: var(--surface-2); color: var(--text); }
+
+    /* ── CHART ──────────────────────────────────────────── */
+    .chart-wrap {
+      position: relative; height: 250px;
+      background: var(--surface-2); border-radius: var(--radius-sm);
+      overflow: hidden; margin-bottom: 14px;
+    }
+    .chart-loading {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 10px; font-size: .82rem; color: var(--text-2);
+    }
+    .chart-empty {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .82rem; color: var(--text-3); text-align: center; padding: 20px;
+    }
+    .chart-canvas { width: 100% !important; height: 100% !important; display: block; }
+
+    /* ── STOCK DETAIL MODAL ─────────────────────────────── */
+    .detail-overlay { z-index: 210; }
+    .detail-modal {
+      max-width: 720px; max-height: 88vh; overflow-y: auto;
+      padding: 22px 24px; scrollbar-width: thin;
+    }
+    .detail-modal-hdr {
+      display: flex; align-items: flex-start;
+      justify-content: space-between; gap: 12px; margin-bottom: 10px;
+    }
+    .detail-title-left { display: flex; align-items: flex-start; gap: 10px; flex: 1; min-width: 0; }
+    .detail-title-right { display: flex; align-items: flex-start; gap: 8px; flex-shrink: 0; }
+    .detail-company-nm { font-size: .95rem; font-weight: 700; color: var(--text); }
+    .detail-price-row {
+      display: flex; align-items: center; gap: 12px;
+      flex-wrap: wrap; margin-bottom: 14px;
+    }
+    .modal-close {
+      background: none; border: none; font-size: .95rem;
+      color: var(--text-3); cursor: pointer; padding: 4px 7px;
+      border-radius: 4px; transition: background .15s; line-height: 1;
+    }
+    .modal-close:hover { background: var(--surface-2); color: var(--text); }
+    .stock-card { cursor: pointer; }
+
+    /* ── PORTFOLIO TREND CARD ───────────────────────────── */
+    .portfolio-trend-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px;
+      box-shadow: var(--shadow); margin-bottom: 24px;
+    }
+    .portfolio-trend-hdr {
+      display: flex; align-items: center;
+      justify-content: space-between; gap: 12px;
+      margin-bottom: 14px; flex-wrap: wrap;
+    }
+    .portfolio-trend-title { font-size: .9rem; font-weight: 700; color: var(--text); }
+    .portfolio-trend-sub { font-size: .72rem; color: var(--text-3); margin-top: 2px; }
+    .portfolio-chart-wrap { height: 190px; margin-bottom: 0; }
   </style>
 </head>
 <body>
@@ -396,18 +637,46 @@
   <!-- ── PAGE 1: RECOMMENDATIONS ── -->
   <section class="page active" id="page-recommendations">
     <div class="page-header">
-      <h2>Today's Picks</h2>
+      <h2 id="page-title">Today's Picks</h2>
       <div class="live-badge"><div class="pulse"></div> Live prices</div>
     </div>
 
-    <div class="market-section">
-      <div class="market-title">🇺🇸 US Markets</div>
-      <div class="cards-grid" id="us-grid"></div>
+    <!-- Horizon selector -->
+    <div class="horizon-bar">
+      <div class="horizon-left">
+        <span class="horizon-view-label">Horizon:</span>
+        <div class="select-wrap">
+          <select id="horizon-select" class="horizon-select">
+            <option value="today">📅 Today's Picks</option>
+            <option value="month">📆 Monthly Picks</option>
+            <option value="year">📈 Yearly Picks</option>
+          </select>
+        </div>
+      </div>
+      <div class="horizon-right">
+        <span class="horizon-sub-text" id="horizon-sub">Momentum signals for the next trading session</span>
+        <span class="horizon-time" id="picks-time"></span>
+        <button class="btn-refresh-picks" id="btn-refresh-picks">↻ Refresh</button>
+      </div>
     </div>
 
-    <div class="market-section">
-      <div class="market-title">🇸🇬 Singapore Markets</div>
-      <div class="cards-grid" id="sg-grid"></div>
+    <!-- Loading state -->
+    <div class="picks-loading" id="picks-loading">
+      <div class="spinner"></div>
+      <div class="loading-msg" id="loading-msg">Loading picks…</div>
+      <div class="loading-sub">Scanning live news across candidate stocks</div>
+    </div>
+
+    <!-- Cards container -->
+    <div id="picks-container">
+      <div class="market-section">
+        <div class="market-title">🇺🇸 US Markets</div>
+        <div class="cards-grid" id="us-grid"></div>
+      </div>
+      <div class="market-section">
+        <div class="market-title">🇸🇬 Singapore Markets</div>
+        <div class="cards-grid" id="sg-grid"></div>
+      </div>
     </div>
   </section>
 
@@ -422,12 +691,12 @@
       <div class="summary-card">
         <div class="summary-label">Market Value (USD)</div>
         <div class="summary-value" id="sum-val-usd">—</div>
-        <div class="summary-sub" id="sum-val-usd-sub">US positions</div>
+        <div class="summary-sub">US positions</div>
       </div>
       <div class="summary-card">
         <div class="summary-label">Market Value (SGD)</div>
         <div class="summary-value" id="sum-val-sgd">—</div>
-        <div class="summary-sub" id="sum-val-sgd-sub">SG positions</div>
+        <div class="summary-sub">SG positions</div>
       </div>
       <div class="summary-card">
         <div class="summary-label">Total Gain / Loss</div>
@@ -438,6 +707,31 @@
         <div class="summary-label">Holdings</div>
         <div class="summary-value" id="sum-count">0</div>
         <div class="summary-sub">tracked positions</div>
+      </div>
+    </div>
+
+    <!-- Portfolio Trend -->
+    <div class="portfolio-trend-card" id="portfolio-trend-card" style="display:none">
+      <div class="portfolio-trend-hdr">
+        <div>
+          <div class="portfolio-trend-title">Portfolio Trend</div>
+          <div class="portfolio-trend-sub" id="portfolio-trend-sub">—</div>
+        </div>
+        <div class="interval-bar" id="portfolio-interval-bar">
+          <button class="interval-btn active" data-pr="1W">1W</button>
+          <button class="interval-btn" data-pr="1M">1M</button>
+          <button class="interval-btn" data-pr="3M">3M</button>
+          <button class="interval-btn" data-pr="1Y">1Y</button>
+        </div>
+      </div>
+      <div class="chart-wrap portfolio-chart-wrap">
+        <div class="chart-loading" id="portfolio-chart-loading" style="display:none">
+          <div class="spinner"></div><span>Loading trend…</span>
+        </div>
+        <div class="chart-empty" id="portfolio-chart-empty">
+          Add shares to stocks to see your portfolio trend
+        </div>
+        <canvas id="portfolio-chart-canvas" class="chart-canvas" style="display:none"></canvas>
       </div>
     </div>
 
@@ -485,6 +779,51 @@
   </div>
 </div>
 
+<!-- ═══════════════════════ DETAIL MODAL ════════════════ -->
+<div class="overlay detail-overlay" id="detail-overlay">
+  <div class="modal detail-modal">
+    <div class="detail-modal-hdr">
+      <div class="detail-title-left">
+        <div class="ticker-badge" id="dd-badge">—</div>
+        <div>
+          <div class="detail-company-nm" id="dd-company">—</div>
+          <div class="market-pill" id="dd-market">—</div>
+        </div>
+      </div>
+      <div class="detail-title-right">
+        <span id="dd-signal"></span>
+        <button class="modal-close" id="btn-detail-close" aria-label="Close">✕</button>
+      </div>
+    </div>
+
+    <div class="detail-price-row">
+      <div class="price-block" id="dd-price-block">—</div>
+    </div>
+
+    <!-- Interval selector -->
+    <div class="interval-bar" id="detail-interval-bar" style="margin-bottom:12px">
+      <button class="interval-btn active" data-di="1D">1D</button>
+      <button class="interval-btn" data-di="5D">5D</button>
+      <button class="interval-btn" data-di="1M">1M</button>
+      <button class="interval-btn" data-di="3M">3M</button>
+      <button class="interval-btn" data-di="6M">6M</button>
+      <button class="interval-btn" data-di="1Y">1Y</button>
+      <button class="interval-btn" data-di="5Y">5Y</button>
+    </div>
+
+    <!-- Price chart -->
+    <div class="chart-wrap">
+      <div class="chart-loading" id="dd-chart-loading">
+        <div class="spinner"></div><span>Loading chart…</span>
+      </div>
+      <canvas id="dd-chart" class="chart-canvas" style="display:none"></canvas>
+    </div>
+
+    <!-- News, analysis, reason box, add button -->
+    <div id="dd-body"></div>
+  </div>
+</div>
+
 <!-- ═══════════════════════ TOASTS ════════════════════════ -->
 <div class="toast-wrap" id="toast-wrap"></div>
 
@@ -493,185 +832,146 @@
 'use strict';
 
 // ──────────────────────────────────────────────────────────
-//  RECOMMENDATION DATA
+//  CANDIDATE POOL  (15 US + 12 SG)
 // ──────────────────────────────────────────────────────────
-const RECS = [
-  // ── US ──────────────────────────────────────────────────
-  {
-    ticker: 'NVDA', company: 'NVIDIA Corporation',
-    market: 'NASDAQ', region: 'US', currency: 'USD', sector: 'Semiconductors',
-    news:
-      'NVIDIA reported record-breaking revenue driven by surging AI infrastructure spending. ' +
-      'Major cloud providers — AWS, Azure, Google Cloud — continue expanding Blackwell GPU orders at a rapid pace. ' +
-      'Data center revenue grew over 400% year-over-year, far ahead of analyst estimates.',
-    research:
-      'Overwhelmingly bullish analyst consensus with Buy/Strong Buy ratings across the board. ' +
-      'Price targets raised repeatedly on strong AI demand visibility. Gross margins expanding as Blackwell ramps. ' +
-      'CUDA ecosystem lock-in creates a durable competitive moat with no credible near-term rival.',
-    reason:
-      'Dominant position in the AI chip market. As AI scales from training to mass inference, NVIDIA captures both workloads. ' +
-      'A core holding in any technology-forward portfolio with a multi-year tailwind.'
+const POOL = {
+  US: [
+    { ticker:'NVDA',  company:'NVIDIA Corporation',       market:'NASDAQ', currency:'USD', sector:'Semiconductors'      },
+    { ticker:'MSFT',  company:'Microsoft Corporation',    market:'NASDAQ', currency:'USD', sector:'Cloud & Software'    },
+    { ticker:'AMZN',  company:'Amazon.com Inc.',          market:'NASDAQ', currency:'USD', sector:'Cloud & E-Commerce'  },
+    { ticker:'META',  company:'Meta Platforms Inc.',      market:'NASDAQ', currency:'USD', sector:'Social Media & AI'   },
+    { ticker:'GOOGL', company:'Alphabet Inc.',            market:'NASDAQ', currency:'USD', sector:'Technology'          },
+    { ticker:'AAPL',  company:'Apple Inc.',               market:'NASDAQ', currency:'USD', sector:'Consumer Tech'       },
+    { ticker:'TSLA',  company:'Tesla Inc.',               market:'NASDAQ', currency:'USD', sector:'EV & Energy'         },
+    { ticker:'AMD',   company:'Advanced Micro Devices',  market:'NASDAQ', currency:'USD', sector:'Semiconductors'      },
+    { ticker:'AVGO',  company:'Broadcom Inc.',            market:'NASDAQ', currency:'USD', sector:'Semiconductors'      },
+    { ticker:'NFLX',  company:'Netflix Inc.',             market:'NASDAQ', currency:'USD', sector:'Streaming'           },
+    { ticker:'CRM',   company:'Salesforce Inc.',          market:'NYSE',   currency:'USD', sector:'Enterprise Software' },
+    { ticker:'PLTR',  company:'Palantir Technologies',    market:'NYSE',   currency:'USD', sector:'AI & Analytics'      },
+    { ticker:'ADBE',  company:'Adobe Inc.',               market:'NASDAQ', currency:'USD', sector:'Creative Software'   },
+    { ticker:'NOW',   company:'ServiceNow Inc.',          market:'NYSE',   currency:'USD', sector:'Enterprise Software' },
+    { ticker:'ORCL',  company:'Oracle Corporation',       market:'NYSE',   currency:'USD', sector:'Cloud & Software'    },
+  ],
+  SG: [
+    { ticker:'D05.SI',  company:'DBS Group Holdings',              market:'SGX', currency:'SGD', sector:'Banking'          },
+    { ticker:'O39.SI',  company:'OCBC Bank',                       market:'SGX', currency:'SGD', sector:'Banking'          },
+    { ticker:'U11.SI',  company:'United Overseas Bank',            market:'SGX', currency:'SGD', sector:'Banking'          },
+    { ticker:'Z74.SI',  company:'Singapore Telecommunications',    market:'SGX', currency:'SGD', sector:'Telecom'          },
+    { ticker:'C6L.SI',  company:'Singapore Airlines',              market:'SGX', currency:'SGD', sector:'Aviation'         },
+    { ticker:'BN4.SI',  company:'Keppel Corporation',              market:'SGX', currency:'SGD', sector:'Conglomerate'     },
+    { ticker:'S68.SI',  company:'Singapore Exchange',              market:'SGX', currency:'SGD', sector:'Financial Svcs'   },
+    { ticker:'G13.SI',  company:'Genting Singapore',               market:'SGX', currency:'SGD', sector:'Gaming & Leisure' },
+    { ticker:'A17U.SI', company:'CapitaLand Ascendas REIT',        market:'SGX', currency:'SGD', sector:'REITs'            },
+    { ticker:'C38U.SI', company:'CapitaLand Integrated Commercial',market:'SGX', currency:'SGD', sector:'REITs'            },
+    { ticker:'F34.SI',  company:'Wilmar International',            market:'SGX', currency:'SGD', sector:'Agribusiness'     },
+    { ticker:'BS6.SI',  company:'Yangzijiang Shipbuilding',        market:'SGX', currency:'SGD', sector:'Industrials'      },
+  ]
+};
+
+// Flat lookup map: ticker → stock object
+const ALL_STOCKS = {};
+[...POOL.US, ...POOL.SG].forEach(s => { ALL_STOCKS[s.ticker] = s; });
+
+// ──────────────────────────────────────────────────────────
+//  HORIZON CONFIGURATIONS
+// ──────────────────────────────────────────────────────────
+const HORIZONS = {
+  today: {
+    label:    "Today's Picks",
+    subtitle: "Momentum signals for the next trading session",
+    badge:    "1-Day Signal",
+    priceW:   0.40,
+    newsW:    0.60,
+    bull: ['surge','soar','rally','spike','jump','beat','record','upgrade','breakout',
+           'catalyst','strong buy','overweight','target raised','exceeds','outperform',
+           'above expectations','momentum','bullish','pop','positive'],
+    bear: ['miss','fall','drop','decline','slump','downgrade','cut','weak','sell',
+           'below expectations','warning','disappoints','negative'],
+    reasonFn(company, bull, topTitle) {
+      const signal = bull > 0
+        ? `${bull} bullish signal${bull > 1 ? 's' : ''} identified in today's news flow.`
+        : 'Price momentum and technical setup support a near-term move.';
+      const trigger = topTitle ? ` Key trigger: "${escHtml(topTitle.substring(0, 85))}…"` : '';
+      return `Near-term catalyst watch for ${escHtml(company)}. ${signal}${trigger}`;
+    }
   },
-  {
-    ticker: 'MSFT', company: 'Microsoft Corporation',
-    market: 'NASDAQ', region: 'US', currency: 'USD', sector: 'Cloud & Software',
-    news:
-      'Azure cloud growth reaccelerated, consistently beating consensus estimates. ' +
-      'Copilot AI integrations across Microsoft 365 are driving subscription upgrades. ' +
-      'GitHub Copilot Enterprise is now widely adopted by Fortune 500 companies, adding meaningful ARR.',
-    research:
-      'Consensus Buy rating. Azure AI tailwind expected to sustain 25%+ cloud revenue growth. ' +
-      'Copilot monetisation adds a $10B+ incremental revenue opportunity. ' +
-      'Strong free cash flow generation supports continued buybacks and dividends.',
-    reason:
-      'Best-in-class AI monetisation story across cloud, productivity, and developer tools. ' +
-      'Azure is gaining hyperscaler market share while Copilot creates a new high-margin enterprise revenue stream. ' +
-      'Rare combination of defensive cash flows and high-growth AI exposure.'
+  month: {
+    label:    "Monthly Picks",
+    subtitle: "High-conviction setups for the coming month",
+    badge:    "1-Month Signal",
+    priceW:   0.25,
+    newsW:    0.75,
+    bull: ['earnings','guidance','beat','upgrade','outperform','growth','expansion',
+           'partnership','contract','raised','revenue','profit','margin','deal',
+           'acquisition','record','strong','positive','buy','overweight','catalyst'],
+    bear: ['miss','warning','downgrade','loss','competition','delay','cut guidance',
+           'disappoints','weak','sell','risk','caution'],
+    reasonFn(company, bull, topTitle) {
+      const signal = bull > 0
+        ? `${bull} positive catalyst${bull > 1 ? 's' : ''} identified across recent news.`
+        : 'Analyst and fundamental momentum supports a medium-term setup.';
+      return `Positive monthly outlook for ${escHtml(company)}. ${signal} Earnings momentum and analyst sentiment point to upside potential over the coming weeks.`;
+    }
   },
-  {
-    ticker: 'AMZN', company: 'Amazon.com Inc.',
-    market: 'NASDAQ', region: 'US', currency: 'USD', sector: 'Cloud & E-Commerce',
-    news:
-      'AWS revenue growth reaccelerating to 17%+ as AI workloads migrate to cloud. ' +
-      'Amazon\'s advertising business is growing at 20%+ as brands shift digital budgets. ' +
-      'Cost-optimisation measures have structurally improved operating margins across all segments.',
-    research:
-      'Strong Buy consensus. AWS AI infrastructure investments are positioned to drive multi-year growth. ' +
-      'Advertising segment increasingly profitable with high incremental margins. ' +
-      'Prime ecosystem stickiness and expanding grocery/logistics moat remain strong.',
-    reason:
-      'Multi-engine growth story: AWS is the backbone of AI cloud infrastructure, ' +
-      'while advertising and the Prime flywheel provide durable consumer revenue. ' +
-      'Significant operating leverage is improving structurally — rising margins at scale.'
-  },
-  {
-    ticker: 'META', company: 'Meta Platforms Inc.',
-    market: 'NASDAQ', region: 'US', currency: 'USD', sector: 'Social Media & AI',
-    news:
-      'Meta\'s AI-driven ad targeting is delivering exceptional ROI for advertisers, driving 20%+ revenue growth. ' +
-      'Llama AI models are gaining enterprise adoption. Instagram Reels and WhatsApp monetisation are accelerating. ' +
-      'Ray-Ban smart glasses have surpassed sales expectations, validating the wearables strategy.',
-    research:
-      'Unanimous Buy rating from major banks. AI-improved ad systems directly compound revenue. ' +
-      'Massive user base (3B+ daily users) provides an unmatched data advantage for advertiser ROI. ' +
-      'Significant free cash flow generation funds continued AI investment and share repurchases.',
-    reason:
-      'The clearest AI-to-revenue conversion story in social media. ' +
-      'AI personalisation improvements translate directly into higher CPMs and advertiser spend efficiency. ' +
-      'Dominant global reach with multiple expanding monetisation vectors.'
-  },
-  {
-    ticker: 'GOOGL', company: 'Alphabet Inc.',
-    market: 'NASDAQ', region: 'US', currency: 'USD', sector: 'Technology',
-    news:
-      'Google Search AI Overviews launched globally with strong engagement metrics. ' +
-      'Google Cloud growth accelerating above 28% YoY, rapidly gaining enterprise AI workloads. ' +
-      'Gemini AI model integrated across all Google products. YouTube ad revenue reached an all-time high.',
-    research:
-      'Buy consensus. Search AI integration expected to sustain market leadership. ' +
-      'Google Cloud is the third hyperscaler closing the gap with AWS and Azure on AI services. ' +
-      'Attractive valuation relative to peers on a PE-to-growth basis.',
-    reason:
-      'Undervalued relative to peers on AI repositioning. ' +
-      'Dominant search moat is augmented rather than threatened by AI, and Google Cloud is a high-conviction growth driver. ' +
-      'Massive optionality through Android, YouTube, and Waymo.'
-  },
-  // ── SG ──────────────────────────────────────────────────
-  {
-    ticker: 'D05.SI', company: 'DBS Group Holdings',
-    market: 'SGX', region: 'SG', currency: 'SGD', sector: 'Banking',
-    news:
-      'DBS posted record net profit driven by higher net interest margins and strong wealth management fee income. ' +
-      'Digital banking initiatives are driving cost efficiency and customer acquisition in Singapore and Hong Kong. ' +
-      'Expanded presence in India and China high-net-worth wealth management segments.',
-    research:
-      'Top pick among Singapore banks. Highest ROE among SG banks at ~18%. ' +
-      'Dividend yield of 5%+ with the possibility of further special dividends. ' +
-      'Strong CET1 capital position well above regulatory requirements.',
-    reason:
-      'Singapore\'s most digitally innovative bank with the highest profitability metrics. ' +
-      'Consistent dividend growth, robust capital returns, and regional expansion into high-growth Asian wealth ' +
-      'management make DBS a compelling blue-chip anchor holding.'
-  },
-  {
-    ticker: 'O39.SI', company: 'OCBC Bank',
-    market: 'SGX', region: 'SG', currency: 'SGD', sector: 'Banking',
-    news:
-      'OCBC reported strong earnings with Great Eastern Life fully integrated post-privatisation. ' +
-      'Wealth management assets under management crossed the S$300B milestone. ' +
-      'Indonesia retail banking operations showing robust growth in deposits and loans.',
-    research:
-      'Buy rated by most major analysts. Attractive dividend yield of 5–6%. ' +
-      'Post-GEL privatisation, insurance earnings are more transparent and consistently profitable. ' +
-      'Strong capital buffer supports further buybacks or dividend increases.',
-    reason:
-      'Compelling value play with a high and sustainable dividend yield. ' +
-      'The Great Eastern acquisition enhances insurance income streams, and broad ASEAN exposure ' +
-      'provides diversified growth well beyond the Singapore domestic market.'
-  },
-  {
-    ticker: 'C6L.SI', company: 'Singapore Airlines',
-    market: 'SGX', region: 'SG', currency: 'SGD', sector: 'Aviation',
-    news:
-      'SIA achieved its highest-ever passenger load factor, with premium cabins consistently full on key routes. ' +
-      'Long-haul cargo is recovering on the back of e-commerce growth. ' +
-      'Scoot low-cost operations expanding rapidly across Southeast Asia.',
-    research:
-      'Analyst consensus improving to Buy. Strong demand for premium international travel with no near-term slowdown. ' +
-      'Fuel cost stabilisation supports margin expansion. ' +
-      'SIA\'s brand premium allows yield management that consistently outperforms peers.',
-    reason:
-      'As one of the world\'s highest-rated airlines, SIA captures premium travel demand recovery. ' +
-      'Singapore\'s strategic position as an aviation hub, combined with strong business and leisure demand, ' +
-      'supports resilient earnings and an attractive dividend.'
-  },
-  {
-    ticker: 'Z74.SI', company: 'Singapore Telecommunications',
-    market: 'SGX', region: 'SG', currency: 'SGD', sector: 'Telecommunications',
-    news:
-      'SingTel\'s associate Bharti Airtel in India continues delivering strong subscriber growth and ARPU improvement. ' +
-      'NCS IT services division is winning major government and enterprise contracts in Singapore and Australia. ' +
-      '5G network rollout in Singapore is over 90% complete.',
-    research:
-      'Improving Buy sentiment. Bharti Airtel stake alone represents a significant portion of SingTel\'s market cap. ' +
-      'Digital infrastructure and NCS growing above market rates. ' +
-      'Dividend policy under review with potential for an increase.',
-    reason:
-      'Compelling sum-of-parts value story. The Bharti Airtel stake provides high-quality India exposure, ' +
-      'while NCS delivers enterprise digital growth. SingTel\'s 5G infrastructure positions it well ' +
-      'for B2B IoT and enterprise monetisation ahead.'
-  },
-  {
-    ticker: 'U11.SI', company: 'United Overseas Bank',
-    market: 'SGX', region: 'SG', currency: 'SGD', sector: 'Banking',
-    news:
-      'UOB completed the integration of Citigroup\'s ASEAN retail operations ahead of schedule, ' +
-      'significantly expanding its customer base in Thailand, Malaysia, Indonesia, and Vietnam. ' +
-      'Wholesale banking income grew strongly across the ASEAN corridor.',
-    research:
-      'Buy rated by most analysts. Citi portfolio integration synergies ahead of schedule. ' +
-      'ASEAN franchise substantially larger with meaningful cross-sell opportunities. ' +
-      'Consistent dividend payer with a 5%+ yield and improving capital returns.',
-    reason:
-      'The premier ASEAN-focused bank. The Citigroup acquisition transformed UOB into a major regional player ' +
-      'across Southeast Asia\'s fast-growing economies — directly benefiting from rising trade flows ' +
-      'and expanding middle-class wealth in the region.'
+  year: {
+    label:    "Yearly Picks",
+    subtitle: "High-conviction 12-month growth stories",
+    badge:    "12-Month Signal",
+    priceW:   0.15,
+    newsW:    0.85,
+    bull: ['AI','cloud','digital','transformation','strategic','long-term','market leader',
+           'expansion','innovation','5G','infrastructure','platform','ecosystem','growth',
+           'dominance','moat','durable','secular','compounding','multi-year','generational'],
+    bear: ['obsolete','disruption','market share loss','structural decline','existential',
+           'commoditised','legacy'],
+    reasonFn(company, bull, topTitle) {
+      const signal = bull > 0
+        ? `${bull} strategic growth signal${bull > 1 ? 's' : ''} identified in recent coverage.`
+        : 'Structural tailwinds and competitive positioning support the long-term thesis.';
+      return `High-conviction 12-month story for ${escHtml(company)}. ${signal} Secular tailwinds and durable competitive advantages support sustained appreciation over the next 12 months.`;
+    }
   }
-];
+};
 
 // ──────────────────────────────────────────────────────────
 //  STATE
 // ──────────────────────────────────────────────────────────
-let watchlist = JSON.parse(localStorage.getItem('fufinds_wl') || '[]');
-let prices    = {};      // { symbol: { price, change, changePct, currency } }
-let editId    = null;
-let autoTimer = null;
+let watchlist           = JSON.parse(localStorage.getItem('fufinds_wl') || '[]');
+let prices              = {};
+let editId              = null;
+let autoTimer           = null;
+let currentHorizon      = 'today';
+let newsCache           = {};   // in-memory: ticker → news[]
+let isLoading           = false;
+let currentPicks        = { us: [], sg: [] };
+let stockChartInst      = null;
+let portfolioChartInst  = null;
+let activeDetailTicker  = null;
+let activeDetailRange   = '1D';
+let activePortfolioRange = '1M';
+
+const CHART_RANGES = {
+  '1D': { interval: '5m',   range: '1d'  },
+  '5D': { interval: '15m',  range: '5d'  },
+  '1M': { interval: '1d',   range: '1mo' },
+  '3M': { interval: '1d',   range: '3mo' },
+  '6M': { interval: '1d',   range: '6mo' },
+  '1Y': { interval: '1wk',  range: '1y'  },
+  '5Y': { interval: '1mo',  range: '5y'  },
+};
+const PORT_RANGES = {
+  '1W': { interval: '1h',  range: '5d'  },
+  '1M': { interval: '1d',  range: '1mo' },
+  '3M': { interval: '1d',  range: '3mo' },
+  '1Y': { interval: '1wk', range: '1y'  },
+};
 
 // ──────────────────────────────────────────────────────────
 //  PRICE FETCHING  (Yahoo Finance via corsproxy.io)
 // ──────────────────────────────────────────────────────────
 const PROXY = 'https://corsproxy.io/?url=';
 const YF    = 'https://query2.finance.yahoo.com/v8/finance/chart/';
+const YF_S  = 'https://query1.finance.yahoo.com/v1/finance/search';
 
 async function fetchPrice(symbol) {
   const url = YF + encodeURIComponent(symbol) + '?interval=1d&range=1d&includePrePost=false';
@@ -699,6 +999,634 @@ async function loadPrices(symbols) {
 }
 
 // ──────────────────────────────────────────────────────────
+//  NEWS FETCHING  (Yahoo Finance search, daily cache)
+// ──────────────────────────────────────────────────────────
+async function fetchStockNews(ticker) {
+  const today    = new Date().toDateString();
+  const cacheKey = 'fufinds_news_' + ticker + '_' + today;
+
+  if (newsCache[ticker]) return newsCache[ticker];
+
+  try {
+    const stored = localStorage.getItem(cacheKey);
+    if (stored) {
+      newsCache[ticker] = JSON.parse(stored);
+      return newsCache[ticker];
+    }
+  } catch {}
+
+  const url = YF_S + '?q=' + encodeURIComponent(ticker) + '&newsCount=5&quotesCount=0&enableFuzzyQuery=false';
+  try {
+    const res  = await fetch(PROXY + encodeURIComponent(url), { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return [];
+    const json = await res.json();
+    // Handle both known response shapes
+    const news = json?.finance?.result?.[0]?.news ?? json?.news ?? [];
+    newsCache[ticker] = news;
+    try { localStorage.setItem(cacheKey, JSON.stringify(news)); } catch {}
+    return news;
+  } catch { return []; }
+}
+
+// ──────────────────────────────────────────────────────────
+//  SCORING
+// ──────────────────────────────────────────────────────────
+function scoreForHorizon(ticker, newsItems, horizon) {
+  const cfg     = HORIZONS[horizon];
+  const allText = newsItems.map(n => ((n.title || '') + ' ' + (n.summary || '')).toLowerCase()).join(' ');
+
+  let bull = 0, bear = 0;
+  cfg.bull.forEach(kw => { if (allText.includes(kw.toLowerCase())) bull++; });
+  cfg.bear.forEach(kw => { if (allText.includes(kw.toLowerCase())) bear++; });
+
+  const newsScore  = bull - bear;
+  const pd         = prices[ticker];
+  const priceScore = pd ? Math.max(-2, Math.min(2, pd.changePct / 5)) : 0;
+  const total      = newsScore * cfg.newsW + priceScore * cfg.priceW;
+  const topTitle   = newsItems[0]?.title ?? '';
+
+  return { total, bull, bear, topTitle };
+}
+
+function signalChip(total) {
+  if (total >= 3)  return '<span class="signal-chip sig-strong">Strong Buy</span>';
+  if (total >= 1)  return '<span class="signal-chip sig-buy">Buy</span>';
+  if (total >= -1) return '<span class="signal-chip sig-watch">Watch</span>';
+  return '<span class="signal-chip sig-caution">Caution</span>';
+}
+
+// ──────────────────────────────────────────────────────────
+//  PICKS LOADING & RENDERING
+// ──────────────────────────────────────────────────────────
+function setLoadingMsg(msg) {
+  const el = document.getElementById('loading-msg');
+  if (el) el.textContent = msg;
+}
+
+async function loadPicksForHorizon(horizon, force = false) {
+  if (isLoading) return;           // guard concurrent calls
+  isLoading = true;
+
+  try {
+    const today    = new Date().toDateString();
+    const cacheKey = 'fufinds_picks_' + horizon + '_' + today;
+
+    // Serve from daily cache
+    if (!force) {
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const data = JSON.parse(cached);
+          // Pre-populate newsCache from localStorage so Live News sections render
+          const cachedTickers = [...(data.us || []), ...(data.sg || [])].map(s => s.ticker);
+          await Promise.allSettled(cachedTickers.map(t => fetchStockNews(t)));
+          renderPicks(data, horizon);
+          return;
+        }
+      } catch {}
+    }
+
+    // Show loading UI
+    document.getElementById('picks-loading').style.display  = 'block';
+    document.getElementById('picks-container').style.display = 'none';
+    document.getElementById('btn-refresh-picks').disabled   = true;
+
+    const allTickers = [...POOL.US.map(s => s.ticker), ...POOL.SG.map(s => s.ticker)];
+
+    // 1. Prices
+    setLoadingMsg('Fetching live prices…');
+    await loadPrices(allTickers);
+
+    // 2. News in batches of 6
+    const BATCH = 6;
+    let fetched = 0;
+    for (let i = 0; i < allTickers.length; i += BATCH) {
+      const batch = allTickers.slice(i, i + BATCH);
+      await Promise.allSettled(batch.map(t => fetchStockNews(t)));
+      fetched += batch.length;
+      setLoadingMsg('Scanning news — ' + Math.min(fetched, allTickers.length) + ' / ' + allTickers.length + ' stocks…');
+    }
+
+    setLoadingMsg('Ranking by signal strength…');
+    await new Promise(r => setTimeout(r, 80)); // let UI paint
+
+    // 3. Score & rank
+    const score = stock => {
+      const sc = scoreForHorizon(stock.ticker, newsCache[stock.ticker] ?? [], horizon);
+      return { ...stock, ...sc };
+    };
+
+    const usPicks = POOL.US.map(score).sort((a, b) => b.total - a.total).slice(0, 5);
+    const sgPicks = POOL.SG.map(score).sort((a, b) => b.total - a.total).slice(0, 5);
+
+    const result = { us: usPicks, sg: sgPicks, generatedAt: new Date().toISOString() };
+    try { localStorage.setItem(cacheKey, JSON.stringify(result)); } catch {}
+
+    renderPicks(result, horizon);
+  } finally {
+    isLoading = false;
+  }
+}
+
+function renderPicks(data, horizon) {
+  currentPicks = data;   // keep picks accessible for detail modal lookup
+  const cfg     = HORIZONS[horizon];
+  const usGrid  = document.getElementById('us-grid');
+  const sgGrid  = document.getElementById('sg-grid');
+
+  usGrid.innerHTML = '';
+  sgGrid.innerHTML = '';
+  data.us.forEach(s => usGrid.appendChild(buildPickCard(s, horizon)));
+  data.sg.forEach(s => sgGrid.appendChild(buildPickCard(s, horizon)));
+
+  // Update header + subtitle
+  document.getElementById('page-title').textContent = cfg.label;
+  document.getElementById('horizon-sub').textContent = cfg.subtitle;
+
+  // Update picks timestamp
+  const t = new Date(data.generatedAt).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' });
+  document.getElementById('picks-time').textContent = 'Generated ' + t;
+
+  // Show cards
+  document.getElementById('picks-loading').style.display   = 'none';
+  document.getElementById('picks-container').style.display = 'block';
+  document.getElementById('btn-refresh-picks').disabled    = false;
+
+  // Paint prices (may already be loaded)
+  refreshCardPrices();
+}
+
+function buildPickCard(stock, horizon) {
+  const cfg    = HORIZONS[horizon];
+  const pd     = prices[stock.ticker];
+  const inWL   = watchlist.some(w => w.ticker === stock.ticker);
+  const isSG   = stock.ticker.endsWith('.SI');
+  const disp   = stock.ticker.replace('.SI', '');
+  const news   = newsCache[stock.ticker] ?? [];
+
+  // Price HTML
+  const priceHtml = pd
+    ? `<div class="current-price">${fmtCur(pd.price, stock.currency)}</div>
+       <div class="price-change ${pd.change >= 0 ? 'up' : 'down'}">
+         ${pd.change >= 0 ? '+' : ''}${fmtCur(pd.change, stock.currency)} (${fmtPct(pd.changePct)})
+       </div>`
+    : '<div class="loading-dot">Fetching…</div>';
+
+  // News HTML
+  let newsHtml;
+  if (news.length === 0) {
+    newsHtml = '<div style="color:var(--text-3);font-size:.8rem">No recent headlines available.</div>';
+  } else {
+    newsHtml = news.slice(0, 4).map(n => {
+      const ts = n.providerPublishTime
+        ? new Date(n.providerPublishTime * 1000).toLocaleDateString('en-SG', { month: 'short', day: 'numeric' })
+        : '';
+      return `<div class="news-item">
+        <div class="news-title">${escHtml(n.title || '')}</div>
+        <div class="news-meta">${escHtml(n.publisher || '')}${ts ? ' · ' + ts : ''}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // Research summary
+  const bull = stock.bull ?? 0;
+  const bear = stock.bear ?? 0;
+  const sentiment = stock.total >= 2 ? 'strongly bullish' : stock.total >= 0 ? 'moderately bullish' : 'cautious';
+  const researchHtml = `News-flow analysis shows <strong>${sentiment}</strong> sentiment ` +
+    `(${bull} positive vs ${bear} negative signals) across ${news.length} recent articles. ` +
+    `Scoring framework weighted towards ${horizon === 'today' ? 'intraday momentum' : horizon === 'month' ? 'earnings & analyst sentiment' : 'long-term strategic positioning'}.`;
+
+  // Reason
+  const reasonText = cfg.reasonFn(stock.company, bull, stock.topTitle ?? '');
+
+  const el = document.createElement('div');
+  el.className    = 'stock-card';
+  el.dataset.ticker = stock.ticker;
+  el.innerHTML = `
+    <div class="card-header">
+      <div class="card-left">
+        <div class="ticker-badge ${isSG ? 'sg-badge' : ''}">${disp}</div>
+        <div>
+          <div class="company-name">${stock.company}</div>
+          <div class="market-pill">${stock.market} · ${stock.sector}</div>
+        </div>
+      </div>
+      <div class="card-right">
+        <div class="price-block">${priceHtml}</div>
+        ${signalChip(stock.total ?? 0)}
+      </div>
+    </div>
+
+    <div class="card-sections">
+      <div class="card-section">
+        <button class="section-toggle" onclick="toggleSec(this)">
+          <span>📰 Live News</span><span class="toggle-arrow">▾</span>
+        </button>
+        <div class="section-content">${newsHtml}</div>
+      </div>
+      <div class="card-section">
+        <button class="section-toggle" onclick="toggleSec(this)">
+          <span>📊 Analysis</span><span class="toggle-arrow">▾</span>
+        </button>
+        <div class="section-content">${researchHtml}</div>
+      </div>
+    </div>
+
+    <div class="reason-box">
+      <div class="reason-label">${cfg.badge}</div>
+      <div class="reason-text">${reasonText}</div>
+    </div>
+
+    <button class="add-btn${inWL ? ' added' : ''}"
+            onclick="addToWL('${stock.ticker}')"
+            ${inWL ? 'disabled' : ''}>
+      ${inWL ? '✓ In Watchlist' : '+ Add to Watchlist'}
+    </button>`;
+
+  // Open detail modal on card click (not on button clicks)
+  el.addEventListener('click', e => {
+    if (e.target.closest('button')) return;
+    openStockDetail(stock.ticker);
+  });
+
+  return el;
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toggleSec(btn) {
+  const content = btn.nextElementSibling;
+  const arrow   = btn.querySelector('.toggle-arrow');
+  const open    = content.classList.toggle('open');
+  arrow.style.transform = open ? 'rotate(180deg)' : '';
+}
+
+// ──────────────────────────────────────────────────────────
+//  CHART DATA FETCH
+// ──────────────────────────────────────────────────────────
+async function fetchChartData(ticker, interval, range) {
+  const url = YF + encodeURIComponent(ticker) +
+    '?interval=' + interval + '&range=' + range + '&includePrePost=false';
+  try {
+    const res  = await fetch(PROXY + encodeURIComponent(url), { signal: AbortSignal.timeout(12000) });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const result = json?.chart?.result?.[0];
+    if (!result) return null;
+    const ts     = result.timestamp ?? [];
+    const closes = result.indicators?.quote?.[0]?.close ?? [];
+    return { timestamps: ts, closes };
+  } catch { return null; }
+}
+
+// ──────────────────────────────────────────────────────────
+//  STOCK DETAIL MODAL
+// ──────────────────────────────────────────────────────────
+function openStockDetail(ticker) {
+  const allPicks = [...(currentPicks.us ?? []), ...(currentPicks.sg ?? [])];
+  const stock    = allPicks.find(s => s.ticker === ticker);
+  if (!stock) return;
+
+  activeDetailTicker = ticker;
+  activeDetailRange  = '1D';
+
+  const pd   = prices[ticker];
+  const isSG = ticker.endsWith('.SI');
+  const disp = ticker.replace('.SI', '');
+  const cur  = stock.currency;
+  const news = newsCache[ticker] ?? [];
+
+  // Header
+  const badge = document.getElementById('dd-badge');
+  badge.textContent = disp;
+  badge.className   = 'ticker-badge' + (isSG ? ' sg-badge' : '');
+  document.getElementById('dd-company').textContent = stock.company;
+  document.getElementById('dd-market').textContent  = stock.market + (stock.sector ? ' · ' + stock.sector : '');
+  document.getElementById('dd-signal').innerHTML    = signalChip(stock.total ?? 0);
+
+  // Price block
+  const pb = document.getElementById('dd-price-block');
+  if (pd) {
+    pb.innerHTML = `<div class="current-price">${fmtCur(pd.price, cur)}</div>
+      <div class="price-change ${pd.change >= 0 ? 'up' : 'down'}">
+        ${pd.change >= 0 ? '+' : ''}${fmtCur(pd.change, cur)} (${fmtPct(pd.changePct)})
+      </div>`;
+  } else {
+    pb.innerHTML = '<span class="loading-dot">Fetching…</span>';
+  }
+
+  // Reset interval buttons
+  document.querySelectorAll('#detail-interval-bar .interval-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.di === '1D');
+  });
+
+  // Build body: news, analysis, reason, add button
+  const horizon    = currentHorizon;
+  const cfg        = HORIZONS[horizon];
+  const bull       = stock.bull ?? 0;
+  const bear       = stock.bear ?? 0;
+  const inWL       = watchlist.some(w => w.ticker === ticker);
+  const sentiment  = (stock.total ?? 0) >= 2 ? 'strongly bullish'
+    : (stock.total ?? 0) >= 0 ? 'moderately bullish' : 'cautious';
+  const reasonText = cfg.reasonFn(stock.company, bull, stock.topTitle ?? '');
+
+  let newsHtml;
+  if (news.length === 0) {
+    newsHtml = '<div style="color:var(--text-3);font-size:.8rem">No recent headlines available.</div>';
+  } else {
+    newsHtml = news.slice(0, 5).map(n => {
+      const nts = n.providerPublishTime
+        ? new Date(n.providerPublishTime * 1000).toLocaleDateString('en-SG', { month: 'short', day: 'numeric' })
+        : '';
+      return `<div class="news-item">
+        <div class="news-title">${escHtml(n.title || '')}</div>
+        <div class="news-meta">${escHtml(n.publisher || '')}${nts ? ' · ' + nts : ''}</div>
+      </div>`;
+    }).join('');
+  }
+
+  const researchHtml =
+    `News-flow analysis shows <strong>${sentiment}</strong> sentiment ` +
+    `(${bull} positive vs ${bear} negative signals) across ${news.length} recent articles. ` +
+    `Scoring weighted towards ${horizon === 'today' ? 'intraday momentum' : horizon === 'month' ? 'earnings & analyst sentiment' : 'long-term strategic positioning'}.`;
+
+  document.getElementById('dd-body').innerHTML = `
+    <div class="card-sections">
+      <div class="card-section">
+        <button class="section-toggle" onclick="toggleSec(this)">
+          <span>📰 Live News</span><span class="toggle-arrow">▾</span>
+        </button>
+        <div class="section-content open">${newsHtml}</div>
+      </div>
+      <div class="card-section">
+        <button class="section-toggle" onclick="toggleSec(this)">
+          <span>📊 Analysis</span><span class="toggle-arrow">▾</span>
+        </button>
+        <div class="section-content">${researchHtml}</div>
+      </div>
+    </div>
+    <div class="reason-box">
+      <div class="reason-label">${cfg.badge}</div>
+      <div class="reason-text">${reasonText}</div>
+    </div>
+    <button class="add-btn${inWL ? ' added' : ''}" id="dd-add-btn"
+            onclick="addToWL('${ticker}')" ${inWL ? 'disabled' : ''}>
+      ${inWL ? '✓ In Watchlist' : '+ Add to Watchlist'}
+    </button>`;
+
+  document.getElementById('detail-overlay').classList.add('open');
+  loadStockChart(ticker, '1D');
+}
+
+function closeDetailModal() {
+  document.getElementById('detail-overlay').classList.remove('open');
+  if (stockChartInst) { stockChartInst.destroy(); stockChartInst = null; }
+  activeDetailTicker = null;
+}
+
+async function loadStockChart(ticker, rangeKey) {
+  const cfg     = CHART_RANGES[rangeKey];
+  const canvas  = document.getElementById('dd-chart');
+  const loading = document.getElementById('dd-chart-loading');
+
+  loading.innerHTML = '<div class="spinner"></div><span>Loading chart…</span>';
+  loading.style.display = 'flex';
+  canvas.style.display  = 'none';
+  if (stockChartInst) { stockChartInst.destroy(); stockChartInst = null; }
+
+  const data = await fetchChartData(ticker, cfg.interval, cfg.range);
+  if (activeDetailTicker !== ticker) return; // stale response
+
+  loading.style.display = 'none';
+
+  if (!data || data.closes.filter(Boolean).length < 2) {
+    loading.innerHTML = '<span style="color:var(--text-3);font-size:.82rem">Chart data unavailable</span>';
+    loading.style.display = 'flex';
+    return;
+  }
+
+  const cur    = ALL_STOCKS[ticker]?.currency ?? 'USD';
+  const points = data.closes
+    .map((c, i) => ({ x: data.timestamps[i], y: c }))
+    .filter(p => p.y != null && !isNaN(p.y));
+
+  const isUp   = points.at(-1).y >= points[0].y;
+  const color  = isUp ? '#16a34a' : '#dc2626';
+  const colorA = isUp ? 'rgba(22,163,74,0.08)' : 'rgba(220,38,38,0.08)';
+
+  const fmtL = ts => {
+    const d = new Date(ts * 1000);
+    if (rangeKey === '1D') return d.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' });
+    if (rangeKey === '5D') return d.toLocaleDateString('en-SG', { weekday: 'short' }) + ' ' +
+      d.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' });
+    if (rangeKey === '1Y' || rangeKey === '5Y')
+      return d.toLocaleDateString('en-SG', { month: 'short', year: '2-digit' });
+    return d.toLocaleDateString('en-SG', { month: 'short', day: 'numeric' });
+  };
+
+  canvas.style.display = 'block';
+  stockChartInst = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: points.map(p => fmtL(p.x)),
+      datasets: [{
+        data: points.map(p => p.y),
+        borderColor: color, backgroundColor: colorA,
+        borderWidth: 2, pointRadius: 0, pointHoverRadius: 4,
+        fill: true, tension: 0.15,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 300 },
+      plugins: {
+        legend: { display: false },
+        tooltip: { mode: 'index', intersect: false, callbacks: { label: ctx => fmtCur(ctx.raw, cur) } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { maxTicksLimit: 7, font: { size: 11 }, color: '#94a3b8', maxRotation: 0 } },
+        y: { position: 'right', grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 11 }, color: '#94a3b8', callback: v => fmtCur(v, cur) } }
+      },
+      interaction: { mode: 'nearest', axis: 'x', intersect: false }
+    }
+  });
+}
+
+// ──────────────────────────────────────────────────────────
+//  PORTFOLIO TREND CHART
+// ──────────────────────────────────────────────────────────
+async function loadPortfolioChart(rangeKey) {
+  activePortfolioRange = rangeKey;
+  const holdings = watchlist.filter(w => parseFloat(w.shares) > 0);
+  const card     = document.getElementById('portfolio-trend-card');
+  const emptyEl  = document.getElementById('portfolio-chart-empty');
+  const loadEl   = document.getElementById('portfolio-chart-loading');
+  const canvas   = document.getElementById('portfolio-chart-canvas');
+  const subEl    = document.getElementById('portfolio-trend-sub');
+
+  card.style.display = 'block';
+
+  if (holdings.length === 0) {
+    if (portfolioChartInst) { portfolioChartInst.destroy(); portfolioChartInst = null; }
+    canvas.style.display = 'none'; loadEl.style.display = 'none';
+    emptyEl.style.display = 'flex';
+    emptyEl.textContent = 'Add shares to stocks to see your portfolio trend';
+    return;
+  }
+
+  loadEl.style.display = 'flex'; emptyEl.style.display = 'none'; canvas.style.display = 'none';
+
+  const { interval, range } = PORT_RANGES[rangeKey];
+  const isHourly = rangeKey === '1W';
+
+  // Fetch historical data for all holdings in parallel
+  const histData = {};
+  await Promise.allSettled(holdings.map(async item => {
+    const d = await fetchChartData(item.ticker, interval, range);
+    if (d) histData[item.ticker] = d;
+  }));
+
+  // Build date-key → {usd, sgd} accumulator
+  const dateMap = new Map();
+
+  // First pass: register all date keys
+  holdings.forEach(item => {
+    const d = histData[item.ticker];
+    if (!d) return;
+    d.timestamps.forEach(ts => {
+      const k = new Date(ts * 1000).toISOString().slice(0, isHourly ? 13 : 10);
+      if (!dateMap.has(k)) dateMap.set(k, { usd: 0, sgd: 0 });
+    });
+  });
+
+  // Second pass: accumulate portfolio value per date key (with forward-fill)
+  holdings.forEach(item => {
+    const d = histData[item.ticker];
+    if (!d) return;
+    const shares = parseFloat(item.shares);
+    const cur    = item.currency || (item.ticker.endsWith('.SI') ? 'SGD' : 'USD');
+
+    // Build dense price lookup
+    const pMap = {};
+    d.timestamps.forEach((ts, i) => {
+      if (d.closes[i] != null) {
+        pMap[new Date(ts * 1000).toISOString().slice(0, isHourly ? 13 : 10)] = d.closes[i];
+      }
+    });
+    const pKeys = Object.keys(pMap).sort();
+
+    [...dateMap.keys()].sort().forEach(dk => {
+      let price = pMap[dk];
+      if (price == null) {
+        const prev = pKeys.filter(k => k <= dk).at(-1);
+        if (prev) price = pMap[prev];
+      }
+      if (price != null) {
+        const e = dateMap.get(dk);
+        if (cur === 'SGD') e.sgd += shares * price;
+        else                e.usd += shares * price;
+      }
+    });
+  });
+
+  const sorted = [...dateMap.entries()].sort((a, b) => a[0] < b[0] ? -1 : 1);
+
+  const fmtDK = dk => {
+    const d = new Date(isHourly ? dk + ':00:00Z' : dk + 'T00:00:00Z');
+    if (rangeKey === '1Y') return d.toLocaleDateString('en-SG', { month: 'short', year: '2-digit' });
+    if (rangeKey === '1W') return d.toLocaleDateString('en-SG', { weekday: 'short', month: 'short', day: 'numeric' });
+    return d.toLocaleDateString('en-SG', { month: 'short', day: 'numeric' });
+  };
+
+  const labels    = sorted.map(([k]) => fmtDK(k));
+  const usdValues = sorted.map(([, v]) => v.usd > 0 ? v.usd : null);
+  const sgdValues = sorted.map(([, v]) => v.sgd > 0 ? v.sgd : null);
+  const hasUSD    = usdValues.some(Boolean);
+  const hasSGD    = sgdValues.some(Boolean);
+
+  if (!hasUSD && !hasSGD) {
+    loadEl.style.display  = 'none';
+    emptyEl.style.display = 'flex';
+    emptyEl.textContent   = 'No chart data available for selected period';
+    return;
+  }
+
+  if (portfolioChartInst) { portfolioChartInst.destroy(); portfolioChartInst = null; }
+  loadEl.style.display = 'none';
+  canvas.style.display = 'block';
+
+  const datasets = [];
+  if (hasUSD) datasets.push({
+    label: 'USD', data: usdValues,
+    borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.07)',
+    borderWidth: 2, pointRadius: 0, pointHoverRadius: 4,
+    fill: true, tension: 0.2,
+    yAxisID: hasUSD && hasSGD ? 'yU' : 'y',
+  });
+  if (hasSGD) datasets.push({
+    label: 'SGD', data: sgdValues,
+    borderColor: '#dc6803', backgroundColor: 'rgba(220,104,3,0.07)',
+    borderWidth: 2, pointRadius: 0, pointHoverRadius: 4,
+    fill: true, tension: 0.2,
+    yAxisID: hasUSD && hasSGD ? 'yS' : 'y',
+  });
+
+  const xScale = { grid: { display: false }, ticks: { maxTicksLimit: 6, font: { size: 10 }, color: '#94a3b8', maxRotation: 0 } };
+  const scales = { x: xScale };
+  if (hasUSD && hasSGD) {
+    scales.yU = { position: 'right', grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 10 }, color: '#2563eb', callback: v => fmtCur(v, 'USD') } };
+    scales.yS = { position: 'left',  grid: { display: false },            ticks: { font: { size: 10 }, color: '#dc6803', callback: v => fmtCur(v, 'SGD') } };
+  } else {
+    scales.y = { position: 'right', grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 10 }, color: '#94a3b8', callback: v => fmtCur(v, hasUSD ? 'USD' : 'SGD') } };
+  }
+
+  portfolioChartInst = new Chart(canvas, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 400 },
+      plugins: {
+        legend: { display: hasUSD && hasSGD, position: 'top', labels: { font: { size: 11 }, boxWidth: 14 } },
+        tooltip: {
+          mode: 'index', intersect: false,
+          callbacks: { label: ctx => ctx.raw != null ? ctx.dataset.label + ': ' + fmtCur(ctx.raw, ctx.dataset.label === 'SGD' ? 'SGD' : 'USD') : null }
+        }
+      },
+      scales,
+      interaction: { mode: 'nearest', axis: 'x', intersect: false }
+    }
+  });
+
+  // Update subtitle with latest portfolio value
+  const lastUSD = hasUSD ? usdValues.filter(Boolean).at(-1) : null;
+  const lastSGD = hasSGD ? sgdValues.filter(Boolean).at(-1) : null;
+  const parts = [];
+  if (lastUSD) parts.push(fmtCur(lastUSD, 'USD'));
+  if (lastSGD) parts.push(fmtCur(lastSGD, 'SGD'));
+  subEl.textContent = (parts.length ? parts.join(' · ') + ' · ' : '') + rangeKey + ' view';
+}
+
+// Update prices on whichever cards are currently rendered
+function refreshCardPrices() {
+  document.querySelectorAll('.stock-card[data-ticker]').forEach(card => {
+    const ticker = card.dataset.ticker;
+    const pd     = prices[ticker];
+    if (!pd) return;
+    const stock  = ALL_STOCKS[ticker];
+    const cur    = stock?.currency ?? (ticker.endsWith('.SI') ? 'SGD' : 'USD');
+    const pb     = card.querySelector('.price-block');
+    if (!pb) return;
+    pb.innerHTML = `
+      <div class="current-price">${fmtCur(pd.price, cur)}</div>
+      <div class="price-change ${pd.change >= 0 ? 'up' : 'down'}">
+        ${pd.change >= 0 ? '+' : ''}${fmtCur(pd.change, cur)} (${fmtPct(pd.changePct)})
+      </div>`;
+  });
+}
+
+// ──────────────────────────────────────────────────────────
 //  FORMAT HELPERS
 // ──────────────────────────────────────────────────────────
 function fmtCur(val, cur = 'USD') {
@@ -717,97 +1645,6 @@ function fmtPct(val) {
 function fmtNum(val) {
   if (!val && val !== 0) return '—';
   return Number(val).toLocaleString('en', { maximumFractionDigits: 3 });
-}
-
-// ──────────────────────────────────────────────────────────
-//  RECOMMENDATIONS PAGE
-// ──────────────────────────────────────────────────────────
-function renderRecs() {
-  const usGrid = document.getElementById('us-grid');
-  const sgGrid = document.getElementById('sg-grid');
-  usGrid.innerHTML = '';
-  sgGrid.innerHTML = '';
-  RECS.forEach(r => {
-    (r.region === 'US' ? usGrid : sgGrid).appendChild(buildCard(r));
-  });
-}
-
-function buildCard(r) {
-  const pd      = prices[r.ticker];
-  const inWL    = watchlist.some(w => w.ticker === r.ticker);
-  const dispTkr = r.ticker.replace('.SI', '');
-  const isSG    = r.region === 'SG';
-
-  const priceHtml = pd
-    ? `<div class="current-price">${fmtCur(pd.price, r.currency)}</div>
-       <div class="price-change ${pd.change >= 0 ? 'up' : 'down'}">
-         ${pd.change >= 0 ? '+' : ''}${fmtCur(pd.change, r.currency)} (${fmtPct(pd.changePct)})
-       </div>`
-    : `<div class="loading-dot">Fetching…</div>`;
-
-  const el = document.createElement('div');
-  el.className = 'stock-card';
-  el.dataset.ticker = r.ticker;
-  el.innerHTML = `
-    <div class="card-header">
-      <div class="card-left">
-        <div class="ticker-badge ${isSG ? 'sg-badge' : ''}">${dispTkr}</div>
-        <div>
-          <div class="company-name">${r.company}</div>
-          <div class="market-pill">${r.market} · ${r.sector}</div>
-        </div>
-      </div>
-      <div class="price-block">${priceHtml}</div>
-    </div>
-
-    <div class="card-sections">
-      <div class="card-section">
-        <button class="section-toggle" onclick="toggleSec(this)">
-          <span>📰 News</span><span class="toggle-arrow">▾</span>
-        </button>
-        <div class="section-content">${r.news}</div>
-      </div>
-      <div class="card-section">
-        <button class="section-toggle" onclick="toggleSec(this)">
-          <span>📊 Analyst Research</span><span class="toggle-arrow">▾</span>
-        </button>
-        <div class="section-content">${r.research}</div>
-      </div>
-    </div>
-
-    <div class="reason-box">
-      <div class="reason-label">Why Now</div>
-      <div class="reason-text">${r.reason}</div>
-    </div>
-
-    <button class="add-btn${inWL ? ' added' : ''}"
-            onclick="addToWL('${r.ticker}')"
-            ${inWL ? 'disabled' : ''}>
-      ${inWL ? '✓ In Watchlist' : '+ Add to Watchlist'}
-    </button>`;
-  return el;
-}
-
-function toggleSec(btn) {
-  const content = btn.nextElementSibling;
-  const arrow   = btn.querySelector('.toggle-arrow');
-  const open    = content.classList.toggle('open');
-  arrow.style.transform = open ? 'rotate(180deg)' : '';
-}
-
-function refreshCardPrices() {
-  RECS.forEach(r => {
-    const card = document.querySelector(`.stock-card[data-ticker="${r.ticker}"]`);
-    if (!card) return;
-    const pd = prices[r.ticker];
-    if (!pd) return;
-    const pb = card.querySelector('.price-block');
-    pb.innerHTML = `
-      <div class="current-price">${fmtCur(pd.price, r.currency)}</div>
-      <div class="price-change ${pd.change >= 0 ? 'up' : 'down'}">
-        ${pd.change >= 0 ? '+' : ''}${fmtCur(pd.change, r.currency)} (${fmtPct(pd.changePct)})
-      </div>`;
-  });
 }
 
 // ──────────────────────────────────────────────────────────
@@ -936,13 +1773,12 @@ function updateSummary() {
   const sgdGL = sgdHasV && sgdHasC ? sgdVal - sgdCost : null;
 
   if (usdGL != null || sgdGL != null) {
-    const parts = [];
+    const parts  = [];
     if (usdGL != null) parts.push((usdGL >= 0 ? '+' : '') + fmtCur(usdGL, 'USD'));
     if (sgdGL != null) parts.push((sgdGL >= 0 ? '+' : '') + fmtCur(sgdGL, 'SGD'));
-    const gainText = parts.join(' / ');
-    const allPos   = (usdGL ?? 0) >= 0 && (sgdGL ?? 0) >= 0;
-    const allNeg   = (usdGL ?? 0) <= 0 && (sgdGL ?? 0) <= 0;
-    setEl('sum-gain', gainText, allPos ? 'gain-v' : allNeg ? 'loss-v' : '');
+    const allPos = (usdGL ?? 0) >= 0 && (sgdGL ?? 0) >= 0;
+    const allNeg = (usdGL ?? 0) <= 0 && (sgdGL ?? 0) <= 0;
+    setEl('sum-gain', parts.join(' / '), allPos ? 'gain-v' : allNeg ? 'loss-v' : '');
     document.getElementById('sum-gain-sub').textContent = 'vs cost basis';
   } else {
     setEl('sum-gain', '—');
@@ -960,11 +1796,11 @@ function addToWL(ticker) {
     toast(ticker.replace('.SI', '') + ' is already in your watchlist');
     return;
   }
-  const rec = RECS.find(r => r.ticker === ticker);
+  const info = ALL_STOCKS[ticker];
   watchlist.push({
     id:       Date.now().toString(),
     ticker,
-    company:  rec?.company || '',
+    company:  info?.company || '',
     shares:   '',
     avgPrice: '',
     currency: ticker.endsWith('.SI') ? 'SGD' : 'USD',
@@ -978,6 +1814,11 @@ function addToWL(ticker) {
     btn.textContent = '✓ In Watchlist';
     btn.classList.add('added');
     btn.disabled = true;
+  }
+  // Update button in detail modal if it's open for this ticker
+  if (activeDetailTicker === ticker) {
+    const ddBtn = document.getElementById('dd-add-btn');
+    if (ddBtn) { ddBtn.textContent = '✓ In Watchlist'; ddBtn.classList.add('added'); ddBtn.disabled = true; }
   }
   toast(ticker.replace('.SI', '') + ' added to watchlist');
 
@@ -1014,6 +1855,11 @@ function delItem(id) {
     btn.textContent = '+ Add to Watchlist';
     btn.classList.remove('added');
     btn.disabled = false;
+  }
+  // Update button in detail modal if open
+  if (activeDetailTicker === item.ticker) {
+    const ddBtn = document.getElementById('dd-add-btn');
+    if (ddBtn) { ddBtn.textContent = '+ Add to Watchlist'; ddBtn.classList.remove('added'); ddBtn.disabled = false; }
   }
   toast(item.ticker.replace('.SI', '') + ' removed');
 }
@@ -1053,6 +1899,8 @@ function saveModal() {
 
   if (!ticker) { toast('Please enter a ticker symbol'); return; }
 
+  const wasEditing = !!editId;   // capture before closeModal() clears editId
+
   if (editId) {
     const item = watchlist.find(w => w.id === editId);
     if (item) {
@@ -1066,11 +1914,11 @@ function saveModal() {
       closeModal();
       return;
     }
-    const rec = RECS.find(r => r.ticker === ticker);
+    const info = ALL_STOCKS[ticker];
     watchlist.push({
       id:       Date.now().toString(),
       ticker,
-      company:  company || rec?.company || '',
+      company:  company || info?.company || '',
       shares,
       avgPrice: avg,
       currency: ticker.endsWith('.SI') ? 'SGD' : 'USD',
@@ -1082,7 +1930,7 @@ function saveModal() {
   closeModal();
   renderWL();
   refreshWLPrices();
-  toast(editId ? 'Position updated' : ticker + ' added');
+  toast(wasEditing ? 'Position updated' : ticker + ' added');
 }
 
 // ──────────────────────────────────────────────────────────
@@ -1098,10 +1946,14 @@ function toast(msg) {
 }
 
 // ──────────────────────────────────────────────────────────
-//  PRICE REFRESH HELPERS
+//  REFRESH HELPERS
 // ──────────────────────────────────────────────────────────
 async function refreshRecPrices() {
-  await loadPrices(RECS.map(r => r.ticker));
+  // Only refresh prices for currently rendered cards (not all pool tickers)
+  const rendered = [...document.querySelectorAll('.stock-card[data-ticker]')]
+                   .map(c => c.dataset.ticker);
+  if (rendered.length === 0) return;
+  await loadPrices(rendered);
   refreshCardPrices();
 }
 
@@ -1129,22 +1981,48 @@ function showPage(name) {
   document.getElementById('page-' + name).classList.add('active');
   document.querySelector(`[data-page="${name}"]`).classList.add('active');
 
-  if (name === 'watchlist') { renderWL(); refreshWLPrices(); }
-  else                      { refreshCardPrices(); }
+  if (name === 'watchlist') {
+    renderWL();
+    refreshWLPrices();
+    loadPortfolioChart(activePortfolioRange);
+  } else {
+    refreshCardPrices();
+  }
 }
 
 // ──────────────────────────────────────────────────────────
 //  INIT
 // ──────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  renderRecs();
-  refreshRecPrices();
+  // Load initial horizon (today's picks)
+  loadPicksForHorizon('today');
 
+  // Auto-refresh prices every 60 s
   autoTimer = setInterval(refreshActive, 60_000);
 
-  // Nav
+  // Nav tabs
   document.querySelectorAll('.nav-tab').forEach(tab => {
     tab.addEventListener('click', () => showPage(tab.dataset.page));
+  });
+
+  // Horizon dropdown
+  document.getElementById('horizon-select').addEventListener('change', function () {
+    currentHorizon = this.value;
+    loadPicksForHorizon(this.value);
+  });
+
+  // Refresh picks button (force re-fetch, clear daily cache)
+  document.getElementById('btn-refresh-picks').addEventListener('click', () => {
+    const h     = document.getElementById('horizon-select').value;
+    const today = new Date().toDateString();
+    try { localStorage.removeItem('fufinds_picks_' + h + '_' + today); } catch {}
+    // Clear all news localStorage entries so API is re-queried
+    [...POOL.US, ...POOL.SG].forEach(s => {
+      try { localStorage.removeItem('fufinds_news_' + s.ticker + '_' + today); } catch {}
+    });
+    newsCache = {};
+    loadPicksForHorizon(h, true);
+    toast('Refreshing picks from live news…');
   });
 
   // Watchlist buttons
@@ -1154,16 +2032,44 @@ document.addEventListener('DOMContentLoaded', () => {
     toast('Refreshing prices…');
   });
 
-  // Modal
+  // Add/edit modal
   document.getElementById('btn-modal-cancel').addEventListener('click', closeModal);
   document.getElementById('btn-modal-save').addEventListener('click', saveModal);
   document.getElementById('overlay').addEventListener('click', e => {
     if (e.target === e.currentTarget) closeModal();
   });
 
+  // Stock detail modal — close button + backdrop click
+  document.getElementById('btn-detail-close').addEventListener('click', closeDetailModal);
+  document.getElementById('detail-overlay').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeDetailModal();
+  });
+
+  // Stock detail — interval buttons
+  document.getElementById('detail-interval-bar').addEventListener('click', e => {
+    const btn = e.target.closest('.interval-btn');
+    if (!btn || !btn.dataset.di) return;
+    document.querySelectorAll('#detail-interval-bar .interval-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeDetailRange = btn.dataset.di;
+    if (activeDetailTicker) loadStockChart(activeDetailTicker, btn.dataset.di);
+  });
+
+  // Portfolio trend — interval buttons
+  document.getElementById('portfolio-interval-bar').addEventListener('click', e => {
+    const btn = e.target.closest('.interval-btn');
+    if (!btn || !btn.dataset.pr) return;
+    document.querySelectorAll('#portfolio-interval-bar .interval-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadPortfolioChart(btn.dataset.pr);
+  });
+
   // Keyboard
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeModal();
+    if (e.key === 'Escape') {
+      if (document.getElementById('detail-overlay').classList.contains('open')) closeDetailModal();
+      else closeModal();
+    }
     if (e.key === 'Enter' && document.getElementById('overlay').classList.contains('open')) saveModal();
   });
 });
