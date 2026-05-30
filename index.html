@@ -614,6 +614,80 @@
     .portfolio-trend-title { font-size: .9rem; font-weight: 700; color: var(--text); }
     .portfolio-trend-sub { font-size: .72rem; color: var(--text-3); margin-top: 2px; }
     .portfolio-chart-wrap { height: 190px; margin-bottom: 0; }
+
+    /* ── AUTH SCREEN ────────────────────────────────────── */
+    .auth-screen {
+      position: fixed; inset: 0; z-index: 500;
+      background: var(--bg);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .auth-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 36px 32px;
+      width: 100%; max-width: 400px;
+      box-shadow: var(--shadow-lg); text-align: center;
+    }
+    .auth-logo {
+      font-size: 2rem; font-weight: 800;
+      color: var(--primary); letter-spacing: -.5px; margin-bottom: 4px;
+    }
+    .auth-logo span { color: var(--text); }
+    .auth-tagline { font-size: .85rem; color: var(--text-3); margin-bottom: 28px; }
+    .auth-tabs {
+      display: flex; background: var(--surface-2);
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 3px; margin-bottom: 22px;
+    }
+    .auth-tab {
+      flex: 1; padding: 8px; background: transparent; border: none;
+      font-family: inherit; font-size: .875rem; font-weight: 500;
+      color: var(--text-2); cursor: pointer; border-radius: 6px; transition: all .15s;
+    }
+    .auth-tab.active {
+      background: var(--surface); color: var(--primary); font-weight: 600;
+      box-shadow: 0 1px 3px rgba(0,0,0,.1);
+    }
+    .auth-submit-btn { width: 100%; padding: 11px; font-size: .9rem; margin-top: 4px; }
+    .auth-msg {
+      padding: 10px 12px; border-radius: var(--radius-sm);
+      font-size: .82rem; text-align: left; margin-bottom: 10px; display: none;
+    }
+    .auth-msg.error   { background: var(--loss-bg);    color: var(--loss);       border: 1px solid var(--loss-bd); }
+    .auth-msg.info    { background: var(--primary-lt); color: var(--primary-dk); border: 1px solid var(--primary-bd); }
+    .auth-msg.success { background: var(--gain-bg);    color: var(--gain);       border: 1px solid var(--gain-bd); }
+    .auth-forgot {
+      background: none; border: none; font-family: inherit;
+      font-size: .78rem; color: var(--text-3); cursor: pointer;
+      margin-top: 10px; text-decoration: underline; transition: color .15s;
+    }
+    .auth-forgot:hover { color: var(--primary); }
+    .auth-footer-note { margin-top: 20px; font-size: .75rem; color: var(--text-3); }
+
+    /* ── HEADER USER PILL ───────────────────────────────── */
+    .header-right {
+      display: flex; align-items: center; gap: 10px;
+      min-width: 110px; justify-content: flex-end;
+    }
+    .user-pill {
+      display: flex; align-items: center; gap: 8px;
+    }
+    .user-email-chip {
+      font-size: .72rem; color: var(--text-2);
+      max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .btn-signout {
+      padding: 5px 10px; background: transparent;
+      border: 1px solid var(--border); border-radius: 6px;
+      font-family: inherit; font-size: .72rem; font-weight: 600;
+      color: var(--text-2); cursor: pointer; white-space: nowrap; transition: all .15s;
+    }
+    .btn-signout:hover { background: var(--loss-bg); color: var(--loss); border-color: var(--loss-bd); }
+    @media (max-width: 640px) {
+      .user-email-chip { display: none; }
+      .auth-card { padding: 28px 20px; }
+    }
   </style>
 </head>
 <body>
@@ -628,7 +702,13 @@
         Watchlist <span id="wl-badge"></span>
       </button>
     </nav>
-    <div class="header-meta" id="header-meta">—</div>
+    <div class="header-right">
+      <div class="header-meta" id="header-meta"></div>
+      <div class="user-pill" id="user-pill" style="display:none">
+        <span class="user-email-chip" id="user-email-chip"></span>
+        <button class="btn-signout" id="btn-signout">Sign out</button>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -825,6 +905,38 @@
   </div>
 </div>
 
+<!-- ═══════════════════════ AUTH SCREEN ═════════════════ -->
+<div id="auth-screen" class="auth-screen" style="display:none">
+  <div class="auth-card">
+    <div class="auth-logo">Fu<span>Finds</span></div>
+    <div class="auth-tagline">Your personal stock dashboard</div>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tab-login">Sign In</button>
+      <button class="auth-tab" id="tab-signup">Create Account</button>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Email</label>
+      <input class="form-input" id="auth-email" type="email"
+             placeholder="you@example.com" autocomplete="email" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Password
+        <span class="form-hint" id="auth-pw-hint">— 6 characters minimum</span>
+      </label>
+      <input class="form-input" id="auth-password" type="password"
+             placeholder="••••••••" autocomplete="current-password" />
+    </div>
+
+    <div class="auth-msg" id="auth-msg"></div>
+    <button class="btn-primary auth-submit-btn" id="auth-submit"
+            data-mode="login">Sign In</button>
+    <button class="auth-forgot" id="auth-forgot">Forgot password?</button>
+  </div>
+  <div class="auth-footer-note">🔒 Watchlist synced securely across all your devices</div>
+</div>
+
 <!-- ═══════════════════════ TOASTS ════════════════════════ -->
 <div class="toast-wrap" id="toast-wrap"></div>
 
@@ -938,58 +1050,175 @@ const HORIZONS = {
 //  STATE
 // ──────────────────────────────────────────────────────────
 // ──────────────────────────────────────────────────────────
-//  SUPABASE  (watchlist cloud persistence)
+//  SUPABASE AUTH + WATCHLIST PERSISTENCE
 // ──────────────────────────────────────────────────────────
 const SUPA_URL = 'https://atqgwproinykwfvvajkt.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0cWd3cHJvaW55a3dmdnZhamt0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4MDQ2NDgsImV4cCI6MjA5MzM4MDY0OH0.U0dhv_BNpoXFyh_gTfxLAPCta5-kK_r5Q5Kh2wVQA0o';
 const supa = window.supabase.createClient(SUPA_URL, SUPA_KEY);
 
-function getUserKey() {
-  let k = localStorage.getItem('fufinds_user_key');
-  if (!k) { k = crypto.randomUUID(); localStorage.setItem('fufinds_user_key', k); }
-  return k;
+let currentUser = null;
+
+function getUserKey() { return currentUser?.id ?? null; }
+
+// ── Auth UI helpers ────────────────────────────────────────
+function showAuthMsg(msg, type = 'error') {
+  const el = document.getElementById('auth-msg');
+  el.textContent = msg;
+  el.className   = 'auth-msg ' + type;
+  el.style.display = 'block';
+}
+function clearAuthMsg() {
+  const el = document.getElementById('auth-msg');
+  el.style.display = 'none'; el.textContent = '';
 }
 
+function showApp() {
+  document.getElementById('auth-screen').style.display = 'none';
+  const pill = document.getElementById('user-pill');
+  pill.style.display = 'flex';
+  const email = currentUser?.email ?? '';
+  document.getElementById('user-email-chip').textContent =
+    email.length > 26 ? email.slice(0, 24) + '…' : email;
+}
+
+function showAuthScreen() {
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('user-pill').style.display   = 'none';
+  document.getElementById('header-meta').textContent   = '';
+  watchlist = [];
+  localStorage.removeItem('fufinds_wl');
+  renderWL();
+}
+
+let _authMode = 'login'; // 'login' | 'signup'
+
+function setAuthMode(mode) {
+  _authMode = mode;
+  const isLogin = mode === 'login';
+  document.getElementById('tab-login').classList.toggle('active', isLogin);
+  document.getElementById('tab-signup').classList.toggle('active', !isLogin);
+  document.getElementById('auth-submit').textContent   = isLogin ? 'Sign In' : 'Create Account';
+  document.getElementById('auth-submit').dataset.mode  = mode;
+  document.getElementById('auth-pw-hint').textContent  = isLogin ? '' : '— 6 characters minimum';
+  document.getElementById('auth-forgot').style.display = isLogin ? 'block' : 'none';
+  document.getElementById('auth-password').autocomplete = isLogin ? 'current-password' : 'new-password';
+  clearAuthMsg();
+}
+
+async function handleAuthSubmit() {
+  const email    = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  if (!email || !password) { showAuthMsg('Please fill in all fields'); return; }
+
+  const btn = document.getElementById('auth-submit');
+  btn.disabled = true;
+  btn.textContent = _authMode === 'login' ? 'Signing in…' : 'Creating account…';
+  clearAuthMsg();
+
+  try {
+    if (_authMode === 'login') {
+      const { error } = await supa.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      // onAuthStateChange fires → showApp() + syncWatchlistFromDB()
+    } else {
+      const { data, error } = await supa.auth.signUp({ email, password });
+      if (error) throw error;
+      if (data.session) {
+        // Email confirmation disabled — logged in immediately
+        // onAuthStateChange handles the rest
+      } else {
+        showAuthMsg('Account created! Check your email for a confirmation link, then sign in.', 'success');
+        setAuthMode('login');
+        document.getElementById('auth-password').value = '';
+      }
+    }
+  } catch (err) {
+    showAuthMsg(err.message || 'Something went wrong');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = _authMode === 'login' ? 'Sign In' : 'Create Account';
+  }
+}
+
+async function handleForgotPassword() {
+  const email = document.getElementById('auth-email').value.trim();
+  if (!email) { showAuthMsg('Enter your email address first'); return; }
+  const { error } = await supa.auth.resetPasswordForEmail(email,
+    { redirectTo: window.location.href });
+  if (error) showAuthMsg(error.message);
+  else showAuthMsg('Password reset email sent — check your inbox', 'info');
+}
+
+async function initAuth() {
+  const { data: { session } } = await supa.auth.getSession();
+  if (session) {
+    currentUser = session.user;
+    showApp();
+    await syncWatchlistFromDB();
+    renderWL(); updateSummary();
+  } else {
+    showAuthScreen();
+  }
+
+  supa.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' && session) {
+      currentUser = session.user;
+      showApp();
+      await syncWatchlistFromDB();
+      renderWL(); updateSummary();
+    } else if (event === 'SIGNED_OUT') {
+      currentUser = null;
+      showAuthScreen();
+    }
+  });
+}
+
+// ── DB helpers ─────────────────────────────────────────────
 async function syncWatchlistFromDB() {
+  const uid = getUserKey();
+  if (!uid) return false;
   try {
     const { data, error } = await supa
       .from('fufinds_watchlist')
       .select('*')
-      .eq('user_key', getUserKey())
+      .eq('user_key', uid)
       .order('added_at', { ascending: true });
     if (error) throw error;
-
-    if (data.length === 0 && watchlist.length > 0) {
-      // First time using DB — migrate existing localStorage data up
-      await Promise.allSettled(watchlist.map(upsertItemInDB));
-    } else {
-      watchlist = data.map(r => ({
-        id: r.id, ticker: r.ticker,
-        company: r.company ?? '', shares: r.shares ?? '',
-        avgPrice: r.avg_price ?? '', currency: r.currency ?? 'USD',
-        addedAt: r.added_at,
-      }));
-      localStorage.setItem('fufinds_wl', JSON.stringify(watchlist));
-    }
+    watchlist = data.map(r => ({
+      id: r.id, ticker: r.ticker,
+      company:  r.company   ?? '',
+      shares:   r.shares    ?? '',
+      avgPrice: r.avg_price ?? '',
+      currency: r.currency  ?? 'USD',
+      addedAt:  r.added_at,
+    }));
+    localStorage.setItem('fufinds_wl', JSON.stringify(watchlist));
     return true;
   } catch { return false; }
 }
 
 async function upsertItemInDB(item) {
+  const uid = getUserKey();
+  if (!uid) return;
   try {
     await supa.from('fufinds_watchlist').upsert({
-      id: item.id, user_key: getUserKey(),
-      ticker: item.ticker, company: item.company ?? '',
-      shares: item.shares ?? '', avg_price: item.avgPrice ?? '',
-      currency: item.currency ?? 'USD', added_at: item.addedAt,
+      id: item.id, user_key: uid,
+      ticker:    item.ticker,
+      company:   item.company   ?? '',
+      shares:    item.shares    ?? '',
+      avg_price: item.avgPrice  ?? '',
+      currency:  item.currency  ?? 'USD',
+      added_at:  item.addedAt,
     });
   } catch {}
 }
 
 async function deleteItemFromDB(id) {
+  const uid = getUserKey();
+  if (!uid) return;
   try {
     await supa.from('fufinds_watchlist').delete()
-      .eq('id', id).eq('user_key', getUserKey());
+      .eq('id', id).eq('user_key', uid);
   } catch {}
 }
 
@@ -2060,10 +2289,16 @@ function showPage(name) {
 //  INIT
 // ──────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  // Sync watchlist from Supabase, then re-render if updated
-  syncWatchlistFromDB().then(ok => {
-    if (ok) { renderWL(); updateSummary(); }
-  });
+  // Auth — check session and wire up login form
+  initAuth();
+
+  document.getElementById('tab-login').addEventListener('click',  () => setAuthMode('login'));
+  document.getElementById('tab-signup').addEventListener('click', () => setAuthMode('signup'));
+  document.getElementById('auth-submit').addEventListener('click', handleAuthSubmit);
+  document.getElementById('auth-forgot').addEventListener('click', handleForgotPassword);
+  document.getElementById('auth-email').addEventListener('keydown',    e => { if (e.key === 'Enter') handleAuthSubmit(); });
+  document.getElementById('auth-password').addEventListener('keydown', e => { if (e.key === 'Enter') handleAuthSubmit(); });
+  document.getElementById('btn-signout').addEventListener('click', () => supa.auth.signOut());
 
   // Load initial horizon (today's picks)
   loadPicksForHorizon('today');
