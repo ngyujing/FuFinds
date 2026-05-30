@@ -76,6 +76,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -932,6 +933,65 @@ const HORIZONS = {
     }
   }
 };
+
+// ──────────────────────────────────────────────────────────
+//  STATE
+// ──────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────
+//  SUPABASE  (watchlist cloud persistence)
+// ──────────────────────────────────────────────────────────
+const SUPA_URL = 'https://atqgwproinykwfvvajkt.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0cWd3cHJvaW55a3dmdnZhamt0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4MDQ2NDgsImV4cCI6MjA5MzM4MDY0OH0.U0dhv_BNpoXFyh_gTfxLAPCta5-kK_r5Q5Kh2wVQA0o';
+const supa = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+
+function getUserKey() {
+  let k = localStorage.getItem('fufinds_user_key');
+  if (!k) { k = crypto.randomUUID(); localStorage.setItem('fufinds_user_key', k); }
+  return k;
+}
+
+async function syncWatchlistFromDB() {
+  try {
+    const { data, error } = await supa
+      .from('fufinds_watchlist')
+      .select('*')
+      .eq('user_key', getUserKey())
+      .order('added_at', { ascending: true });
+    if (error) throw error;
+
+    if (data.length === 0 && watchlist.length > 0) {
+      // First time using DB — migrate existing localStorage data up
+      await Promise.allSettled(watchlist.map(upsertItemInDB));
+    } else {
+      watchlist = data.map(r => ({
+        id: r.id, ticker: r.ticker,
+        company: r.company ?? '', shares: r.shares ?? '',
+        avgPrice: r.avg_price ?? '', currency: r.currency ?? 'USD',
+        addedAt: r.added_at,
+      }));
+      localStorage.setItem('fufinds_wl', JSON.stringify(watchlist));
+    }
+    return true;
+  } catch { return false; }
+}
+
+async function upsertItemInDB(item) {
+  try {
+    await supa.from('fufinds_watchlist').upsert({
+      id: item.id, user_key: getUserKey(),
+      ticker: item.ticker, company: item.company ?? '',
+      shares: item.shares ?? '', avg_price: item.avgPrice ?? '',
+      currency: item.currency ?? 'USD', added_at: item.addedAt,
+    });
+  } catch {}
+}
+
+async function deleteItemFromDB(id) {
+  try {
+    await supa.from('fufinds_watchlist').delete()
+      .eq('id', id).eq('user_key', getUserKey());
+  } catch {}
+}
 
 // ──────────────────────────────────────────────────────────
 //  STATE
@@ -1797,7 +1857,7 @@ function addToWL(ticker) {
     return;
   }
   const info = ALL_STOCKS[ticker];
-  watchlist.push({
+  const newItem = {
     id:       Date.now().toString(),
     ticker,
     company:  info?.company || '',
@@ -1805,8 +1865,10 @@ function addToWL(ticker) {
     avgPrice: '',
     currency: ticker.endsWith('.SI') ? 'SGD' : 'USD',
     addedAt:  new Date().toISOString()
-  });
+  };
+  watchlist.push(newItem);
   saveWL();
+  upsertItemInDB(newItem);
 
   const card = document.querySelector(`.stock-card[data-ticker="${ticker}"]`);
   if (card) {
@@ -1847,6 +1909,7 @@ function delItem(id) {
   if (!item) return;
   watchlist = watchlist.filter(w => w.id !== id);
   saveWL();
+  deleteItemFromDB(id);
   renderWL();
 
   const card = document.querySelector(`.stock-card[data-ticker="${item.ticker}"]`);
@@ -1901,12 +1964,13 @@ function saveModal() {
 
   const wasEditing = !!editId;   // capture before closeModal() clears editId
 
+  let savedItem;
   if (editId) {
-    const item = watchlist.find(w => w.id === editId);
-    if (item) {
-      item.company  = company || item.company;
-      item.shares   = shares;
-      item.avgPrice = avg;
+    savedItem = watchlist.find(w => w.id === editId);
+    if (savedItem) {
+      savedItem.company  = company || savedItem.company;
+      savedItem.shares   = shares;
+      savedItem.avgPrice = avg;
     }
   } else {
     if (watchlist.some(w => w.ticker === ticker)) {
@@ -1915,7 +1979,7 @@ function saveModal() {
       return;
     }
     const info = ALL_STOCKS[ticker];
-    watchlist.push({
+    savedItem = {
       id:       Date.now().toString(),
       ticker,
       company:  company || info?.company || '',
@@ -1923,9 +1987,11 @@ function saveModal() {
       avgPrice: avg,
       currency: ticker.endsWith('.SI') ? 'SGD' : 'USD',
       addedAt:  new Date().toISOString()
-    });
+    };
+    watchlist.push(savedItem);
   }
 
+  if (savedItem) upsertItemInDB(savedItem);
   saveWL();
   closeModal();
   renderWL();
@@ -1994,6 +2060,11 @@ function showPage(name) {
 //  INIT
 // ──────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  // Sync watchlist from Supabase, then re-render if updated
+  syncWatchlistFromDB().then(ok => {
+    if (ok) { renderWL(); updateSummary(); }
+  });
+
   // Load initial horizon (today's picks)
   loadPicksForHorizon('today');
 
