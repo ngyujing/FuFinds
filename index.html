@@ -75,6 +75,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -542,6 +543,76 @@
       .horizon-select { min-width: 160px; }
       .horizon-sub-text { display: none; }
     }
+
+    /* ── INTERVAL BUTTONS ───────────────────────────────── */
+    .interval-bar { display: flex; gap: 4px; flex-wrap: wrap; }
+    .interval-btn {
+      padding: 5px 11px; background: transparent;
+      border: 1px solid var(--border); border-radius: 6px;
+      font-family: inherit; font-size: .72rem; font-weight: 600;
+      color: var(--text-2); cursor: pointer; transition: all .15s; white-space: nowrap;
+    }
+    .interval-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .interval-btn:hover:not(.active) { background: var(--surface-2); color: var(--text); }
+
+    /* ── CHART ──────────────────────────────────────────── */
+    .chart-wrap {
+      position: relative; height: 250px;
+      background: var(--surface-2); border-radius: var(--radius-sm);
+      overflow: hidden; margin-bottom: 14px;
+    }
+    .chart-loading {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 10px; font-size: .82rem; color: var(--text-2);
+    }
+    .chart-empty {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .82rem; color: var(--text-3); text-align: center; padding: 20px;
+    }
+    .chart-canvas { width: 100% !important; height: 100% !important; display: block; }
+
+    /* ── STOCK DETAIL MODAL ─────────────────────────────── */
+    .detail-overlay { z-index: 210; }
+    .detail-modal {
+      max-width: 720px; max-height: 88vh; overflow-y: auto;
+      padding: 22px 24px; scrollbar-width: thin;
+    }
+    .detail-modal-hdr {
+      display: flex; align-items: flex-start;
+      justify-content: space-between; gap: 12px; margin-bottom: 10px;
+    }
+    .detail-title-left { display: flex; align-items: flex-start; gap: 10px; flex: 1; min-width: 0; }
+    .detail-title-right { display: flex; align-items: flex-start; gap: 8px; flex-shrink: 0; }
+    .detail-company-nm { font-size: .95rem; font-weight: 700; color: var(--text); }
+    .detail-price-row {
+      display: flex; align-items: center; gap: 12px;
+      flex-wrap: wrap; margin-bottom: 14px;
+    }
+    .modal-close {
+      background: none; border: none; font-size: .95rem;
+      color: var(--text-3); cursor: pointer; padding: 4px 7px;
+      border-radius: 4px; transition: background .15s; line-height: 1;
+    }
+    .modal-close:hover { background: var(--surface-2); color: var(--text); }
+    .stock-card { cursor: pointer; }
+
+    /* ── PORTFOLIO TREND CARD ───────────────────────────── */
+    .portfolio-trend-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px;
+      box-shadow: var(--shadow); margin-bottom: 24px;
+    }
+    .portfolio-trend-hdr {
+      display: flex; align-items: center;
+      justify-content: space-between; gap: 12px;
+      margin-bottom: 14px; flex-wrap: wrap;
+    }
+    .portfolio-trend-title { font-size: .9rem; font-weight: 700; color: var(--text); }
+    .portfolio-trend-sub { font-size: .72rem; color: var(--text-3); margin-top: 2px; }
+    .portfolio-chart-wrap { height: 190px; margin-bottom: 0; }
   </style>
 </head>
 <body>
@@ -639,6 +710,31 @@
       </div>
     </div>
 
+    <!-- Portfolio Trend -->
+    <div class="portfolio-trend-card" id="portfolio-trend-card" style="display:none">
+      <div class="portfolio-trend-hdr">
+        <div>
+          <div class="portfolio-trend-title">Portfolio Trend</div>
+          <div class="portfolio-trend-sub" id="portfolio-trend-sub">—</div>
+        </div>
+        <div class="interval-bar" id="portfolio-interval-bar">
+          <button class="interval-btn active" data-pr="1W">1W</button>
+          <button class="interval-btn" data-pr="1M">1M</button>
+          <button class="interval-btn" data-pr="3M">3M</button>
+          <button class="interval-btn" data-pr="1Y">1Y</button>
+        </div>
+      </div>
+      <div class="chart-wrap portfolio-chart-wrap">
+        <div class="chart-loading" id="portfolio-chart-loading" style="display:none">
+          <div class="spinner"></div><span>Loading trend…</span>
+        </div>
+        <div class="chart-empty" id="portfolio-chart-empty">
+          Add shares to stocks to see your portfolio trend
+        </div>
+        <canvas id="portfolio-chart-canvas" class="chart-canvas" style="display:none"></canvas>
+      </div>
+    </div>
+
     <div class="toolbar">
       <button class="btn-primary" id="btn-add-stock">+ Add Stock</button>
     </div>
@@ -680,6 +776,51 @@
       <button class="btn-ghost" id="btn-modal-cancel">Cancel</button>
       <button class="btn-primary" id="btn-modal-save">Save</button>
     </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ DETAIL MODAL ════════════════ -->
+<div class="overlay detail-overlay" id="detail-overlay">
+  <div class="modal detail-modal">
+    <div class="detail-modal-hdr">
+      <div class="detail-title-left">
+        <div class="ticker-badge" id="dd-badge">—</div>
+        <div>
+          <div class="detail-company-nm" id="dd-company">—</div>
+          <div class="market-pill" id="dd-market">—</div>
+        </div>
+      </div>
+      <div class="detail-title-right">
+        <span id="dd-signal"></span>
+        <button class="modal-close" id="btn-detail-close" aria-label="Close">✕</button>
+      </div>
+    </div>
+
+    <div class="detail-price-row">
+      <div class="price-block" id="dd-price-block">—</div>
+    </div>
+
+    <!-- Interval selector -->
+    <div class="interval-bar" id="detail-interval-bar" style="margin-bottom:12px">
+      <button class="interval-btn active" data-di="1D">1D</button>
+      <button class="interval-btn" data-di="5D">5D</button>
+      <button class="interval-btn" data-di="1M">1M</button>
+      <button class="interval-btn" data-di="3M">3M</button>
+      <button class="interval-btn" data-di="6M">6M</button>
+      <button class="interval-btn" data-di="1Y">1Y</button>
+      <button class="interval-btn" data-di="5Y">5Y</button>
+    </div>
+
+    <!-- Price chart -->
+    <div class="chart-wrap">
+      <div class="chart-loading" id="dd-chart-loading">
+        <div class="spinner"></div><span>Loading chart…</span>
+      </div>
+      <canvas id="dd-chart" class="chart-canvas" style="display:none"></canvas>
+    </div>
+
+    <!-- News, analysis, reason box, add button -->
+    <div id="dd-body"></div>
   </div>
 </div>
 
@@ -795,13 +936,35 @@ const HORIZONS = {
 // ──────────────────────────────────────────────────────────
 //  STATE
 // ──────────────────────────────────────────────────────────
-let watchlist      = JSON.parse(localStorage.getItem('fufinds_wl') || '[]');
-let prices         = {};
-let editId         = null;
-let autoTimer      = null;
-let currentHorizon = 'today';
-let newsCache      = {};   // in-memory: ticker → news[]
-let isLoading      = false;
+let watchlist           = JSON.parse(localStorage.getItem('fufinds_wl') || '[]');
+let prices              = {};
+let editId              = null;
+let autoTimer           = null;
+let currentHorizon      = 'today';
+let newsCache           = {};   // in-memory: ticker → news[]
+let isLoading           = false;
+let currentPicks        = { us: [], sg: [] };
+let stockChartInst      = null;
+let portfolioChartInst  = null;
+let activeDetailTicker  = null;
+let activeDetailRange   = '1D';
+let activePortfolioRange = '1M';
+
+const CHART_RANGES = {
+  '1D': { interval: '5m',   range: '1d'  },
+  '5D': { interval: '15m',  range: '5d'  },
+  '1M': { interval: '1d',   range: '1mo' },
+  '3M': { interval: '1d',   range: '3mo' },
+  '6M': { interval: '1d',   range: '6mo' },
+  '1Y': { interval: '1wk',  range: '1y'  },
+  '5Y': { interval: '1mo',  range: '5y'  },
+};
+const PORT_RANGES = {
+  '1W': { interval: '1h',  range: '5d'  },
+  '1M': { interval: '1d',  range: '1mo' },
+  '3M': { interval: '1d',  range: '3mo' },
+  '1Y': { interval: '1wk', range: '1y'  },
+};
 
 // ──────────────────────────────────────────────────────────
 //  PRICE FETCHING  (Yahoo Finance via corsproxy.io)
@@ -966,6 +1129,7 @@ async function loadPicksForHorizon(horizon, force = false) {
 }
 
 function renderPicks(data, horizon) {
+  currentPicks = data;   // keep picks accessible for detail modal lookup
   const cfg     = HORIZONS[horizon];
   const usGrid  = document.getElementById('us-grid');
   const sgGrid  = document.getElementById('sg-grid');
@@ -1078,6 +1242,13 @@ function buildPickCard(stock, horizon) {
             ${inWL ? 'disabled' : ''}>
       ${inWL ? '✓ In Watchlist' : '+ Add to Watchlist'}
     </button>`;
+
+  // Open detail modal on card click (not on button clicks)
+  el.addEventListener('click', e => {
+    if (e.target.closest('button')) return;
+    openStockDetail(stock.ticker);
+  });
+
   return el;
 }
 
@@ -1090,6 +1261,351 @@ function toggleSec(btn) {
   const arrow   = btn.querySelector('.toggle-arrow');
   const open    = content.classList.toggle('open');
   arrow.style.transform = open ? 'rotate(180deg)' : '';
+}
+
+// ──────────────────────────────────────────────────────────
+//  CHART DATA FETCH
+// ──────────────────────────────────────────────────────────
+async function fetchChartData(ticker, interval, range) {
+  const url = YF + encodeURIComponent(ticker) +
+    '?interval=' + interval + '&range=' + range + '&includePrePost=false';
+  try {
+    const res  = await fetch(PROXY + encodeURIComponent(url), { signal: AbortSignal.timeout(12000) });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const result = json?.chart?.result?.[0];
+    if (!result) return null;
+    const ts     = result.timestamp ?? [];
+    const closes = result.indicators?.quote?.[0]?.close ?? [];
+    return { timestamps: ts, closes };
+  } catch { return null; }
+}
+
+// ──────────────────────────────────────────────────────────
+//  STOCK DETAIL MODAL
+// ──────────────────────────────────────────────────────────
+function openStockDetail(ticker) {
+  const allPicks = [...(currentPicks.us ?? []), ...(currentPicks.sg ?? [])];
+  const stock    = allPicks.find(s => s.ticker === ticker);
+  if (!stock) return;
+
+  activeDetailTicker = ticker;
+  activeDetailRange  = '1D';
+
+  const pd   = prices[ticker];
+  const isSG = ticker.endsWith('.SI');
+  const disp = ticker.replace('.SI', '');
+  const cur  = stock.currency;
+  const news = newsCache[ticker] ?? [];
+
+  // Header
+  const badge = document.getElementById('dd-badge');
+  badge.textContent = disp;
+  badge.className   = 'ticker-badge' + (isSG ? ' sg-badge' : '');
+  document.getElementById('dd-company').textContent = stock.company;
+  document.getElementById('dd-market').textContent  = stock.market + (stock.sector ? ' · ' + stock.sector : '');
+  document.getElementById('dd-signal').innerHTML    = signalChip(stock.total ?? 0);
+
+  // Price block
+  const pb = document.getElementById('dd-price-block');
+  if (pd) {
+    pb.innerHTML = `<div class="current-price">${fmtCur(pd.price, cur)}</div>
+      <div class="price-change ${pd.change >= 0 ? 'up' : 'down'}">
+        ${pd.change >= 0 ? '+' : ''}${fmtCur(pd.change, cur)} (${fmtPct(pd.changePct)})
+      </div>`;
+  } else {
+    pb.innerHTML = '<span class="loading-dot">Fetching…</span>';
+  }
+
+  // Reset interval buttons
+  document.querySelectorAll('#detail-interval-bar .interval-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.di === '1D');
+  });
+
+  // Build body: news, analysis, reason, add button
+  const horizon    = currentHorizon;
+  const cfg        = HORIZONS[horizon];
+  const bull       = stock.bull ?? 0;
+  const bear       = stock.bear ?? 0;
+  const inWL       = watchlist.some(w => w.ticker === ticker);
+  const sentiment  = (stock.total ?? 0) >= 2 ? 'strongly bullish'
+    : (stock.total ?? 0) >= 0 ? 'moderately bullish' : 'cautious';
+  const reasonText = cfg.reasonFn(stock.company, bull, stock.topTitle ?? '');
+
+  let newsHtml;
+  if (news.length === 0) {
+    newsHtml = '<div style="color:var(--text-3);font-size:.8rem">No recent headlines available.</div>';
+  } else {
+    newsHtml = news.slice(0, 5).map(n => {
+      const nts = n.providerPublishTime
+        ? new Date(n.providerPublishTime * 1000).toLocaleDateString('en-SG', { month: 'short', day: 'numeric' })
+        : '';
+      return `<div class="news-item">
+        <div class="news-title">${escHtml(n.title || '')}</div>
+        <div class="news-meta">${escHtml(n.publisher || '')}${nts ? ' · ' + nts : ''}</div>
+      </div>`;
+    }).join('');
+  }
+
+  const researchHtml =
+    `News-flow analysis shows <strong>${sentiment}</strong> sentiment ` +
+    `(${bull} positive vs ${bear} negative signals) across ${news.length} recent articles. ` +
+    `Scoring weighted towards ${horizon === 'today' ? 'intraday momentum' : horizon === 'month' ? 'earnings & analyst sentiment' : 'long-term strategic positioning'}.`;
+
+  document.getElementById('dd-body').innerHTML = `
+    <div class="card-sections">
+      <div class="card-section">
+        <button class="section-toggle" onclick="toggleSec(this)">
+          <span>📰 Live News</span><span class="toggle-arrow">▾</span>
+        </button>
+        <div class="section-content open">${newsHtml}</div>
+      </div>
+      <div class="card-section">
+        <button class="section-toggle" onclick="toggleSec(this)">
+          <span>📊 Analysis</span><span class="toggle-arrow">▾</span>
+        </button>
+        <div class="section-content">${researchHtml}</div>
+      </div>
+    </div>
+    <div class="reason-box">
+      <div class="reason-label">${cfg.badge}</div>
+      <div class="reason-text">${reasonText}</div>
+    </div>
+    <button class="add-btn${inWL ? ' added' : ''}" id="dd-add-btn"
+            onclick="addToWL('${ticker}')" ${inWL ? 'disabled' : ''}>
+      ${inWL ? '✓ In Watchlist' : '+ Add to Watchlist'}
+    </button>`;
+
+  document.getElementById('detail-overlay').classList.add('open');
+  loadStockChart(ticker, '1D');
+}
+
+function closeDetailModal() {
+  document.getElementById('detail-overlay').classList.remove('open');
+  if (stockChartInst) { stockChartInst.destroy(); stockChartInst = null; }
+  activeDetailTicker = null;
+}
+
+async function loadStockChart(ticker, rangeKey) {
+  const cfg     = CHART_RANGES[rangeKey];
+  const canvas  = document.getElementById('dd-chart');
+  const loading = document.getElementById('dd-chart-loading');
+
+  loading.innerHTML = '<div class="spinner"></div><span>Loading chart…</span>';
+  loading.style.display = 'flex';
+  canvas.style.display  = 'none';
+  if (stockChartInst) { stockChartInst.destroy(); stockChartInst = null; }
+
+  const data = await fetchChartData(ticker, cfg.interval, cfg.range);
+  if (activeDetailTicker !== ticker) return; // stale response
+
+  loading.style.display = 'none';
+
+  if (!data || data.closes.filter(Boolean).length < 2) {
+    loading.innerHTML = '<span style="color:var(--text-3);font-size:.82rem">Chart data unavailable</span>';
+    loading.style.display = 'flex';
+    return;
+  }
+
+  const cur    = ALL_STOCKS[ticker]?.currency ?? 'USD';
+  const points = data.closes
+    .map((c, i) => ({ x: data.timestamps[i], y: c }))
+    .filter(p => p.y != null && !isNaN(p.y));
+
+  const isUp   = points.at(-1).y >= points[0].y;
+  const color  = isUp ? '#16a34a' : '#dc2626';
+  const colorA = isUp ? 'rgba(22,163,74,0.08)' : 'rgba(220,38,38,0.08)';
+
+  const fmtL = ts => {
+    const d = new Date(ts * 1000);
+    if (rangeKey === '1D') return d.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' });
+    if (rangeKey === '5D') return d.toLocaleDateString('en-SG', { weekday: 'short' }) + ' ' +
+      d.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' });
+    if (rangeKey === '1Y' || rangeKey === '5Y')
+      return d.toLocaleDateString('en-SG', { month: 'short', year: '2-digit' });
+    return d.toLocaleDateString('en-SG', { month: 'short', day: 'numeric' });
+  };
+
+  canvas.style.display = 'block';
+  stockChartInst = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: points.map(p => fmtL(p.x)),
+      datasets: [{
+        data: points.map(p => p.y),
+        borderColor: color, backgroundColor: colorA,
+        borderWidth: 2, pointRadius: 0, pointHoverRadius: 4,
+        fill: true, tension: 0.15,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 300 },
+      plugins: {
+        legend: { display: false },
+        tooltip: { mode: 'index', intersect: false, callbacks: { label: ctx => fmtCur(ctx.raw, cur) } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { maxTicksLimit: 7, font: { size: 11 }, color: '#94a3b8', maxRotation: 0 } },
+        y: { position: 'right', grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 11 }, color: '#94a3b8', callback: v => fmtCur(v, cur) } }
+      },
+      interaction: { mode: 'nearest', axis: 'x', intersect: false }
+    }
+  });
+}
+
+// ──────────────────────────────────────────────────────────
+//  PORTFOLIO TREND CHART
+// ──────────────────────────────────────────────────────────
+async function loadPortfolioChart(rangeKey) {
+  activePortfolioRange = rangeKey;
+  const holdings = watchlist.filter(w => parseFloat(w.shares) > 0);
+  const card     = document.getElementById('portfolio-trend-card');
+  const emptyEl  = document.getElementById('portfolio-chart-empty');
+  const loadEl   = document.getElementById('portfolio-chart-loading');
+  const canvas   = document.getElementById('portfolio-chart-canvas');
+  const subEl    = document.getElementById('portfolio-trend-sub');
+
+  card.style.display = 'block';
+
+  if (holdings.length === 0) {
+    if (portfolioChartInst) { portfolioChartInst.destroy(); portfolioChartInst = null; }
+    canvas.style.display = 'none'; loadEl.style.display = 'none';
+    emptyEl.style.display = 'flex';
+    emptyEl.textContent = 'Add shares to stocks to see your portfolio trend';
+    return;
+  }
+
+  loadEl.style.display = 'flex'; emptyEl.style.display = 'none'; canvas.style.display = 'none';
+
+  const { interval, range } = PORT_RANGES[rangeKey];
+  const isHourly = rangeKey === '1W';
+
+  // Fetch historical data for all holdings in parallel
+  const histData = {};
+  await Promise.allSettled(holdings.map(async item => {
+    const d = await fetchChartData(item.ticker, interval, range);
+    if (d) histData[item.ticker] = d;
+  }));
+
+  // Build date-key → {usd, sgd} accumulator
+  const dateMap = new Map();
+
+  // First pass: register all date keys
+  holdings.forEach(item => {
+    const d = histData[item.ticker];
+    if (!d) return;
+    d.timestamps.forEach(ts => {
+      const k = new Date(ts * 1000).toISOString().slice(0, isHourly ? 13 : 10);
+      if (!dateMap.has(k)) dateMap.set(k, { usd: 0, sgd: 0 });
+    });
+  });
+
+  // Second pass: accumulate portfolio value per date key (with forward-fill)
+  holdings.forEach(item => {
+    const d = histData[item.ticker];
+    if (!d) return;
+    const shares = parseFloat(item.shares);
+    const cur    = item.currency || (item.ticker.endsWith('.SI') ? 'SGD' : 'USD');
+
+    // Build dense price lookup
+    const pMap = {};
+    d.timestamps.forEach((ts, i) => {
+      if (d.closes[i] != null) {
+        pMap[new Date(ts * 1000).toISOString().slice(0, isHourly ? 13 : 10)] = d.closes[i];
+      }
+    });
+    const pKeys = Object.keys(pMap).sort();
+
+    [...dateMap.keys()].sort().forEach(dk => {
+      let price = pMap[dk];
+      if (price == null) {
+        const prev = pKeys.filter(k => k <= dk).at(-1);
+        if (prev) price = pMap[prev];
+      }
+      if (price != null) {
+        const e = dateMap.get(dk);
+        if (cur === 'SGD') e.sgd += shares * price;
+        else                e.usd += shares * price;
+      }
+    });
+  });
+
+  const sorted = [...dateMap.entries()].sort((a, b) => a[0] < b[0] ? -1 : 1);
+
+  const fmtDK = dk => {
+    const d = new Date(isHourly ? dk + ':00:00Z' : dk + 'T00:00:00Z');
+    if (rangeKey === '1Y') return d.toLocaleDateString('en-SG', { month: 'short', year: '2-digit' });
+    if (rangeKey === '1W') return d.toLocaleDateString('en-SG', { weekday: 'short', month: 'short', day: 'numeric' });
+    return d.toLocaleDateString('en-SG', { month: 'short', day: 'numeric' });
+  };
+
+  const labels    = sorted.map(([k]) => fmtDK(k));
+  const usdValues = sorted.map(([, v]) => v.usd > 0 ? v.usd : null);
+  const sgdValues = sorted.map(([, v]) => v.sgd > 0 ? v.sgd : null);
+  const hasUSD    = usdValues.some(Boolean);
+  const hasSGD    = sgdValues.some(Boolean);
+
+  if (!hasUSD && !hasSGD) {
+    loadEl.style.display  = 'none';
+    emptyEl.style.display = 'flex';
+    emptyEl.textContent   = 'No chart data available for selected period';
+    return;
+  }
+
+  if (portfolioChartInst) { portfolioChartInst.destroy(); portfolioChartInst = null; }
+  loadEl.style.display = 'none';
+  canvas.style.display = 'block';
+
+  const datasets = [];
+  if (hasUSD) datasets.push({
+    label: 'USD', data: usdValues,
+    borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.07)',
+    borderWidth: 2, pointRadius: 0, pointHoverRadius: 4,
+    fill: true, tension: 0.2,
+    yAxisID: hasUSD && hasSGD ? 'yU' : 'y',
+  });
+  if (hasSGD) datasets.push({
+    label: 'SGD', data: sgdValues,
+    borderColor: '#dc6803', backgroundColor: 'rgba(220,104,3,0.07)',
+    borderWidth: 2, pointRadius: 0, pointHoverRadius: 4,
+    fill: true, tension: 0.2,
+    yAxisID: hasUSD && hasSGD ? 'yS' : 'y',
+  });
+
+  const xScale = { grid: { display: false }, ticks: { maxTicksLimit: 6, font: { size: 10 }, color: '#94a3b8', maxRotation: 0 } };
+  const scales = { x: xScale };
+  if (hasUSD && hasSGD) {
+    scales.yU = { position: 'right', grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 10 }, color: '#2563eb', callback: v => fmtCur(v, 'USD') } };
+    scales.yS = { position: 'left',  grid: { display: false },            ticks: { font: { size: 10 }, color: '#dc6803', callback: v => fmtCur(v, 'SGD') } };
+  } else {
+    scales.y = { position: 'right', grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 10 }, color: '#94a3b8', callback: v => fmtCur(v, hasUSD ? 'USD' : 'SGD') } };
+  }
+
+  portfolioChartInst = new Chart(canvas, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 400 },
+      plugins: {
+        legend: { display: hasUSD && hasSGD, position: 'top', labels: { font: { size: 11 }, boxWidth: 14 } },
+        tooltip: {
+          mode: 'index', intersect: false,
+          callbacks: { label: ctx => ctx.raw != null ? ctx.dataset.label + ': ' + fmtCur(ctx.raw, ctx.dataset.label === 'SGD' ? 'SGD' : 'USD') : null }
+        }
+      },
+      scales,
+      interaction: { mode: 'nearest', axis: 'x', intersect: false }
+    }
+  });
+
+  // Update subtitle with latest portfolio value
+  const lastUSD = hasUSD ? usdValues.filter(Boolean).at(-1) : null;
+  const lastSGD = hasSGD ? sgdValues.filter(Boolean).at(-1) : null;
+  const parts = [];
+  if (lastUSD) parts.push(fmtCur(lastUSD, 'USD'));
+  if (lastSGD) parts.push(fmtCur(lastSGD, 'SGD'));
+  subEl.textContent = (parts.length ? parts.join(' · ') + ' · ' : '') + rangeKey + ' view';
 }
 
 // Update prices on whichever cards are currently rendered
@@ -1299,6 +1815,11 @@ function addToWL(ticker) {
     btn.classList.add('added');
     btn.disabled = true;
   }
+  // Update button in detail modal if it's open for this ticker
+  if (activeDetailTicker === ticker) {
+    const ddBtn = document.getElementById('dd-add-btn');
+    if (ddBtn) { ddBtn.textContent = '✓ In Watchlist'; ddBtn.classList.add('added'); ddBtn.disabled = true; }
+  }
   toast(ticker.replace('.SI', '') + ' added to watchlist');
 
   if (document.getElementById('page-watchlist').classList.contains('active')) {
@@ -1334,6 +1855,11 @@ function delItem(id) {
     btn.textContent = '+ Add to Watchlist';
     btn.classList.remove('added');
     btn.disabled = false;
+  }
+  // Update button in detail modal if open
+  if (activeDetailTicker === item.ticker) {
+    const ddBtn = document.getElementById('dd-add-btn');
+    if (ddBtn) { ddBtn.textContent = '+ Add to Watchlist'; ddBtn.classList.remove('added'); ddBtn.disabled = false; }
   }
   toast(item.ticker.replace('.SI', '') + ' removed');
 }
@@ -1455,8 +1981,13 @@ function showPage(name) {
   document.getElementById('page-' + name).classList.add('active');
   document.querySelector(`[data-page="${name}"]`).classList.add('active');
 
-  if (name === 'watchlist') { renderWL(); refreshWLPrices(); }
-  else                      { refreshCardPrices(); }
+  if (name === 'watchlist') {
+    renderWL();
+    refreshWLPrices();
+    loadPortfolioChart(activePortfolioRange);
+  } else {
+    refreshCardPrices();
+  }
 }
 
 // ──────────────────────────────────────────────────────────
@@ -1501,16 +2032,44 @@ document.addEventListener('DOMContentLoaded', () => {
     toast('Refreshing prices…');
   });
 
-  // Modal
+  // Add/edit modal
   document.getElementById('btn-modal-cancel').addEventListener('click', closeModal);
   document.getElementById('btn-modal-save').addEventListener('click', saveModal);
   document.getElementById('overlay').addEventListener('click', e => {
     if (e.target === e.currentTarget) closeModal();
   });
 
+  // Stock detail modal — close button + backdrop click
+  document.getElementById('btn-detail-close').addEventListener('click', closeDetailModal);
+  document.getElementById('detail-overlay').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeDetailModal();
+  });
+
+  // Stock detail — interval buttons
+  document.getElementById('detail-interval-bar').addEventListener('click', e => {
+    const btn = e.target.closest('.interval-btn');
+    if (!btn || !btn.dataset.di) return;
+    document.querySelectorAll('#detail-interval-bar .interval-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeDetailRange = btn.dataset.di;
+    if (activeDetailTicker) loadStockChart(activeDetailTicker, btn.dataset.di);
+  });
+
+  // Portfolio trend — interval buttons
+  document.getElementById('portfolio-interval-bar').addEventListener('click', e => {
+    const btn = e.target.closest('.interval-btn');
+    if (!btn || !btn.dataset.pr) return;
+    document.querySelectorAll('#portfolio-interval-bar .interval-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadPortfolioChart(btn.dataset.pr);
+  });
+
   // Keyboard
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeModal();
+    if (e.key === 'Escape') {
+      if (document.getElementById('detail-overlay').classList.contains('open')) closeDetailModal();
+      else closeModal();
+    }
     if (e.key === 'Enter' && document.getElementById('overlay').classList.contains('open')) saveModal();
   });
 });
