@@ -2614,6 +2614,30 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter' && document.getElementById('overlay').classList.contains('open')) saveModal();
   });
 });
+
+// ── SERVICE WORKER — ensures the PWA always opens on the latest version ──
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(console.warn);
+
+  // When a new SW takes control (skipWaiting + clients.claim fired), reload so
+  // the page is served fresh by the updated worker.
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloading) return;
+    reloading = true;
+    const banner = document.createElement('div');
+    banner.style.cssText = [
+      'position:fixed','top:0','left:0','right:0','z-index:9999',
+      'background:var(--primary,#2563eb)','color:#fff',
+      'text-align:center','padding:10px 16px',
+      'font:600 .82rem/1 var(--font,system-ui)',
+      'letter-spacing:.01em','pointer-events:none',
+    ].join(';');
+    banner.textContent = 'Updating to latest version…';
+    document.body.appendChild(banner);
+    setTimeout(() => location.reload(), 350);
+  });
+}
 </script>
 </body>
 </html>
