@@ -1205,13 +1205,11 @@ function showApp() {
     email.length > 26 ? email.slice(0, 24) + '…' : email;
 }
 
+// Only clear watchlist data on explicit sign-out, never on session expiry
 function showAuthScreen() {
   document.getElementById('auth-screen').style.display = 'flex';
   document.getElementById('user-pill').style.display   = 'none';
   document.getElementById('header-meta').textContent   = '';
-  watchlist = [];
-  localStorage.removeItem('fufinds_wl');
-  renderWL();
 }
 
 let _authMode = 'login'; // 'login' | 'signup'
@@ -1273,13 +1271,22 @@ async function handleForgotPassword() {
   else showAuthMsg('Password reset email sent — check your inbox', 'info');
 }
 
+function refreshWatchlistUI() {
+  renderWL();
+  updateSummary();
+  // If the watchlist page is currently visible, also refresh the portfolio chart
+  if (document.getElementById('page-watchlist')?.classList.contains('active')) {
+    loadPortfolioChart(activePortfolioRange);
+  }
+}
+
 async function initAuth() {
   const { data: { session } } = await supa.auth.getSession();
   if (session) {
     currentUser = session.user;
     showApp();
     await syncWatchlistFromDB();
-    renderWL(); updateSummary();
+    refreshWatchlistUI();
   } else {
     showAuthScreen();
   }
@@ -1289,9 +1296,13 @@ async function initAuth() {
       currentUser = session.user;
       showApp();
       await syncWatchlistFromDB();
-      renderWL(); updateSummary();
+      refreshWatchlistUI();
     } else if (event === 'SIGNED_OUT') {
       currentUser = null;
+      // Explicit sign-out: clear local data so the next user starts fresh
+      watchlist = [];
+      localStorage.removeItem('fufinds_wl');
+      renderWL();
       showAuthScreen();
     }
   });
@@ -1308,19 +1319,30 @@ async function syncWatchlistFromDB() {
       .eq('user_key', uid)
       .order('added_at', { ascending: true });
     if (error) throw error;
-    watchlist = data.map(r => ({
-      id: r.id, ticker: r.ticker,
-      company:  r.company   ?? '',
-      shares:   r.shares    ?? '',
-      avgPrice: r.avg_price ?? '',
-      currency: r.currency  ?? 'USD',
-      addedAt:  r.added_at,
-    }));
-    localStorage.setItem('fufinds_wl', JSON.stringify(watchlist));
-    setSyncStatus(true, '✓ Cloud synced');
+
+    if (data.length === 0 && watchlist.length > 0) {
+      // DB is empty but we have local items — migrate them up (handles first login
+      // with existing data, or recovery after failed previous upserts)
+      setSyncStatus(true, 'Syncing to cloud…');
+      await Promise.allSettled(watchlist.map(item => upsertItemInDB(item)));
+      setSyncStatus(true, '✓ Cloud synced');
+    } else if (data.length > 0) {
+      watchlist = data.map(r => ({
+        id: r.id, ticker: r.ticker,
+        company:  r.company   ?? '',
+        shares:   r.shares    ?? '',
+        avgPrice: r.avg_price ?? '',
+        currency: r.currency  ?? 'USD',
+        addedAt:  r.added_at,
+      }));
+      localStorage.setItem('fufinds_wl', JSON.stringify(watchlist));
+      setSyncStatus(true, '✓ Cloud synced');
+    }
+    // If both DB and local are empty, leave watchlist as [] — nothing to do
     return true;
   } catch (e) {
     console.warn('[FuFinds] DB fetch failed:', e?.message ?? e);
+    // Do NOT overwrite local data — keep showing what localStorage has
     setSyncStatus(false, '⚠ Offline — showing local data');
     return false;
   }
@@ -2339,10 +2361,11 @@ function addToWL(ticker) {
     if (ddBtn) { ddBtn.textContent = '✓ In Watchlist'; ddBtn.classList.add('added'); ddBtn.disabled = true; }
   }
   toast(ticker.replace('.SI', '') + ' added to watchlist');
-
+  updateSummary();
   if (document.getElementById('page-watchlist').classList.contains('active')) {
     renderWL();
     refreshWLPrices();
+    loadPortfolioChart(activePortfolioRange);
   }
 }
 
@@ -2367,6 +2390,8 @@ function delItem(id) {
   saveWL();
   deleteItemFromDB(id);
   renderWL();
+  updateSummary();
+  loadPortfolioChart(activePortfolioRange);
 
   const card = document.querySelector(`.stock-card[data-ticker="${item.ticker}"]`);
   if (card) {
@@ -2451,7 +2476,9 @@ function saveModal() {
   saveWL();
   closeModal();
   renderWL();
+  updateSummary();
   refreshWLPrices();
+  loadPortfolioChart(activePortfolioRange);
   toast(wasEditing ? 'Position updated' : ticker + ' added');
 }
 
