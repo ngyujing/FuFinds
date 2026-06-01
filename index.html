@@ -689,6 +689,27 @@
       .auth-card { padding: 28px 20px; }
     }
 
+    /* ── RISK FILTER BAR ────────────────────────────────── */
+    .risk-filter-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 0 16px 12px; flex-wrap: wrap;
+    }
+    .risk-filter-label {
+      font-size: .78rem; color: var(--text-3); font-weight: 500; margin-right: 2px;
+    }
+    .risk-btn {
+      padding: 5px 14px; border-radius: 16px;
+      border: 1px solid var(--border); background: transparent;
+      font-family: inherit; font-size: .78rem; font-weight: 500;
+      color: var(--text-2); cursor: pointer; transition: all .15s;
+    }
+    .risk-btn:hover:not(.active) { background: var(--surface-2); color: var(--text); }
+    .risk-btn.active { font-weight: 700; color: #fff; }
+    .risk-btn[data-risk="all"].active      { background: var(--primary); border-color: var(--primary); }
+    .risk-btn[data-risk="aggressive"].active { background: #dc2626; border-color: #dc2626; }
+    .risk-btn[data-risk="conservative"].active { background: #16a34a; border-color: #16a34a; }
+    @media (max-width: 480px) { .risk-filter-label { display: none; } }
+
     /* ── EXPECTED RETURN & RISK BADGES ─────────────────── */
     .ret-badge {
       display: inline-block; font-size: .68rem; font-weight: 600;
@@ -757,15 +778,9 @@
         <span class="horizon-view-label">Horizon:</span>
         <div class="select-wrap">
           <select id="horizon-select" class="horizon-select">
-            <optgroup label="Time Horizon">
-              <option value="today">📅 Today's Picks</option>
-              <option value="month">📆 Monthly Picks</option>
-              <option value="year">📈 Yearly Picks</option>
-            </optgroup>
-            <optgroup label="Risk Profile">
-              <option value="aggressive">⚡ Aggressive Growth</option>
-              <option value="conservative">🛡 Conservative</option>
-            </optgroup>
+            <option value="today">📅 Today's Picks</option>
+            <option value="month">📆 Monthly Picks</option>
+            <option value="year">📈 Yearly Picks</option>
           </select>
         </div>
       </div>
@@ -774,6 +789,14 @@
         <span class="horizon-time" id="picks-time"></span>
         <button class="btn-refresh-picks" id="btn-refresh-picks">↻ Refresh</button>
       </div>
+    </div>
+
+    <!-- Risk profile filter -->
+    <div class="risk-filter-bar" id="risk-filter-bar">
+      <span class="risk-filter-label">Risk profile:</span>
+      <button class="risk-btn active" data-risk="all">All Stocks</button>
+      <button class="risk-btn" data-risk="aggressive">⚡ Aggressive</button>
+      <button class="risk-btn" data-risk="conservative">🛡 Conservative</button>
     </div>
 
     <!-- Loading state -->
@@ -1144,58 +1167,8 @@ const HORIZONS = {
     }
   },
 
-  aggressive: {
-    label:    "Aggressive Growth",
-    subtitle: "High-risk, high-reward — disruptive & future-oriented picks",
-    badge:    "High Risk / High Reward",
-    riskLevel: 'high',
-    pool:    null, // set after POOL_AGGRESSIVE is declared — patched below
-    priceW:  0.35,
-    newsW:   0.65,
-    bull: ['breakthrough','disruptive','exponential','hypergrowth','revolutionary',
-           'generational','moonshot','AI','quantum','blockchain','crypto','genomics',
-           'gene editing','autonomous','space','rocket','launch','token','protocol',
-           'next-generation','adoption','record','surge','partnership','raises',
-           'funding','speculative buy','strong growth','multi-bagger','explosive'],
-    bear: ['fraud','SEC investigation','bankrupt','delisting','failure','cash burn',
-           'going concern','dilution','miss','regulatory','lawsuit','fraud allegations',
-           'collapse','halted','massive loss','declining users'],
-    reasonFn(company, bull, topTitle) {
-      const signal = bull > 0
-        ? `${bull} high-conviction signal${bull > 1 ? 's' : ''} detected in recent coverage.`
-        : 'Speculative setup based on sector momentum and thematic positioning.';
-      const trigger = topTitle ? ` Latest catalyst: "${escHtml(topTitle.substring(0, 80))}…"` : '';
-      return `⚡ Aggressive pick: ${escHtml(company)}. ${signal}${trigger} High volatility expected — size positions accordingly.`;
-    }
-  },
-
-  conservative: {
-    label:    "Conservative",
-    subtitle: "Stable, dividend-paying blue-chips with consistent track records",
-    badge:    "Stable Growth Signal",
-    riskLevel: 'low',
-    pool:    null, // patched below
-    priceW:  0.20,
-    newsW:   0.80,
-    bull: ['dividend','raised dividend','dividend increase','buyback','share repurchase',
-           'stable growth','consistent earnings','beat','cash flow','blue chip',
-           'market leader','defensive','income','yield','reliable','strong balance sheet',
-           'free cash flow','recurring revenue','pricing power','resilient','steady'],
-    bear: ['dividend cut','dividend suspended','guidance cut','margin pressure',
-           'competition','market share loss','decline','restructuring','layoff',
-           'disappoints','below expectations','write-down','loss'],
-    reasonFn(company, bull, topTitle) {
-      const signal = bull > 0
-        ? `${bull} stability signal${bull > 1 ? 's' : ''} confirmed across recent coverage.`
-        : 'Fundamental quality and dividend track record support the defensive thesis.';
-      return `🛡 Conservative pick: ${escHtml(company)}. ${signal} Consistent earnings, strong cash flow and dividend history make this a reliable core holding.`;
-    }
-  }
 };
 
-// Patch pool references (pools declared after HORIZONS literal)
-HORIZONS.aggressive.pool = POOL_AGGRESSIVE;
-HORIZONS.conservative.pool = POOL_CONSERVATIVE;
 
 // ──────────────────────────────────────────────────────────
 //  STATE
@@ -1403,6 +1376,13 @@ let prices              = {};
 let editId              = null;
 let autoTimer           = null;
 let currentHorizon      = 'today';
+let currentRiskProfile  = 'all'; // 'all' | 'aggressive' | 'conservative'
+
+function getPoolForRisk(risk) {
+  return risk === 'aggressive' ? POOL_AGGRESSIVE
+       : risk === 'conservative' ? POOL_CONSERVATIVE
+       : POOL;
+}
 let newsCache           = {};   // in-memory: ticker → news[]
 let isLoading           = false;
 let currentPicks        = { us: [], sg: [] };
@@ -1517,25 +1497,36 @@ function signalChip(total) {
   return '<span class="signal-chip sig-caution">Caution</span>';
 }
 
-// Returns [lo%, hi%] expected return range for the given signal strength + horizon
-function calcExpectedReturn(total, horizon) {
+// Returns [lo%, hi%] expected return range based on signal strength, horizon, and risk profile
+function calcExpectedReturn(total, horizon, risk = 'all') {
   const tbl = {
-    aggressive:   [[20,50],[10,25],[0,15],[-15,5]],
-    conservative: [[ 8,16],[ 5,11],[2, 7],[  0,3]],
-    today:        [[ 1, 4],[ 0, 2],[-1,1],[ -3,0]],
-    month:        [[ 5,15],[ 2, 8],[-1,4],[ -5,1]],
-    year:         [[15,35],[ 8,20],[ 2,10],[-5, 5]],
+    all: {
+      today: [[ 1, 4],[ 0, 2],[-1, 1],[-3, 0]],
+      month: [[ 5,15],[ 2, 8],[-1, 4],[-5, 1]],
+      year:  [[15,35],[ 8,20],[ 2,10],[-5, 5]],
+    },
+    aggressive: {
+      today: [[ 2, 7],[ 1, 4],[ 0, 2],[-3, 1]],
+      month: [[10,25],[ 5,15],[ 0, 8],[-8, 2]],
+      year:  [[20,50],[10,25],[ 0,15],[-15,5]],
+    },
+    conservative: {
+      today: [[ 0, 2],[ 0, 1],[-1, 0],[-2, 0]],
+      month: [[ 3, 8],[ 2, 5],[ 0, 3],[-2, 1]],
+      year:  [[ 8,16],[ 5,11],[ 2, 7],[ 0, 3]],
+    },
   };
+  const profile = tbl[risk] ?? tbl.all;
+  const ranges  = profile[horizon] ?? profile.year;
   const idx = total >= 3 ? 0 : total >= 1 ? 1 : total >= -1 ? 2 : 3;
-  return (tbl[horizon] ?? tbl.year)[idx];
+  return ranges[idx];
 }
 
-function fmtReturnBadge(total, horizon) {
-  const [lo, hi] = calcExpectedReturn(total, horizon);
+function fmtReturnBadge(total, horizon, risk = 'all') {
+  const [lo, hi] = calcExpectedReturn(total, horizon, risk);
   const sign  = v => v >= 0 ? '+' : '';
   const range = lo === hi ? `${sign(lo)}${lo}%` : `${sign(lo)}${lo}% to ${sign(hi)}${hi}%`;
-  const label = { today:'Today', month:'Month', year:'Annual',
-                  aggressive:'Annual', conservative:'Annual' }[horizon] ?? 'Annual';
+  const label = { today:'Today', month:'Month', year:'Annual' }[horizon] ?? 'Annual';
   const cls   = lo >= 0 ? 'ret-pos' : 'ret-neg';
   return `<span class="ret-badge ${cls}">Est. ${label}: ${range}</span>`;
 }
@@ -1554,7 +1545,7 @@ async function loadPicksForHorizon(horizon, force = false) {
 
   try {
     const today    = new Date().toDateString();
-    const cacheKey = 'fufinds_picks_' + horizon + '_' + today;
+    const cacheKey = 'fufinds_picks_' + horizon + '_' + currentRiskProfile + '_' + today;
 
     // Serve from daily cache
     if (!force) {
@@ -1565,7 +1556,7 @@ async function loadPicksForHorizon(horizon, force = false) {
           // Pre-populate newsCache from localStorage so Live News sections render
           const cachedTickers = [...(data.us || []), ...(data.sg || [])].map(s => s.ticker);
           await Promise.allSettled(cachedTickers.map(t => fetchStockNews(t)));
-          renderPicks(data, horizon);
+          renderPicks(data, horizon, currentRiskProfile);
           return;
         }
       } catch {}
@@ -1576,7 +1567,7 @@ async function loadPicksForHorizon(horizon, force = false) {
     document.getElementById('picks-container').style.display = 'none';
     document.getElementById('btn-refresh-picks').disabled   = true;
 
-    const pool       = cfg.pool ?? POOL;
+    const pool       = getPoolForRisk(currentRiskProfile);
     const allTickers = [...pool.US.map(s => s.ticker), ...pool.SG.map(s => s.ticker)];
 
     // 1. Prices
@@ -1608,13 +1599,13 @@ async function loadPicksForHorizon(horizon, force = false) {
     const result = { us: usPicks, sg: sgPicks, generatedAt: new Date().toISOString() };
     try { localStorage.setItem(cacheKey, JSON.stringify(result)); } catch {}
 
-    renderPicks(result, horizon);
+    renderPicks(result, horizon, currentRiskProfile);
   } finally {
     isLoading = false;
   }
 }
 
-function renderPicks(data, horizon) {
+function renderPicks(data, horizon, riskProfile = 'all') {
   currentPicks = data;   // keep picks accessible for detail modal lookup
   const cfg     = HORIZONS[horizon];
   const usGrid  = document.getElementById('us-grid');
@@ -1622,12 +1613,14 @@ function renderPicks(data, horizon) {
 
   usGrid.innerHTML = '';
   sgGrid.innerHTML = '';
-  data.us.forEach(s => usGrid.appendChild(buildPickCard(s, horizon)));
-  data.sg.forEach(s => sgGrid.appendChild(buildPickCard(s, horizon)));
+  data.us.forEach(s => usGrid.appendChild(buildPickCard(s, horizon, riskProfile)));
+  data.sg.forEach(s => sgGrid.appendChild(buildPickCard(s, horizon, riskProfile)));
 
   // Update header + subtitle
   document.getElementById('page-title').textContent = cfg.label;
-  document.getElementById('horizon-sub').textContent = cfg.subtitle;
+  const riskSub = riskProfile === 'aggressive' ? ' · ⚡ Aggressive mode'
+    : riskProfile === 'conservative' ? ' · 🛡 Conservative mode' : '';
+  document.getElementById('horizon-sub').textContent = cfg.subtitle + riskSub;
 
   // Update picks timestamp
   const t = new Date(data.generatedAt).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' });
@@ -1642,7 +1635,7 @@ function renderPicks(data, horizon) {
   refreshCardPrices();
 }
 
-function buildPickCard(stock, horizon) {
+function buildPickCard(stock, horizon, riskProfile = 'all') {
   const cfg    = HORIZONS[horizon];
   const pd     = prices[stock.ticker];
   const inWL   = watchlist.some(w => w.ticker === stock.ticker);
@@ -1688,12 +1681,12 @@ function buildPickCard(stock, horizon) {
 
   // Reason + expected return
   const reasonText  = cfg.reasonFn(stock.company, bull, stock.topTitle ?? '');
-  const retBadgeHtml = fmtReturnBadge(stock.total ?? 0, horizon);
+  const retBadgeHtml = fmtReturnBadge(stock.total ?? 0, horizon, riskProfile);
 
-  // Risk pill for aggressive/conservative
-  const riskPill = cfg.riskLevel === 'high'
+  // Risk pill based on active risk profile
+  const riskPill = riskProfile === 'aggressive'
     ? '<span class="risk-pill risk-high">HIGH RISK</span>'
-    : cfg.riskLevel === 'low'
+    : riskProfile === 'conservative'
       ? '<span class="risk-pill risk-stable">STABLE</span>'
       : '';
 
@@ -1802,13 +1795,12 @@ function openStockDetail(ticker) {
   badge.textContent = disp;
   badge.className   = 'ticker-badge' + (isSG ? ' sg-badge' : '');
   document.getElementById('dd-company').textContent = stock.company;
-  const cfg = HORIZONS[currentHorizon];
-  const riskPillHtml = cfg.riskLevel === 'high'
+  const riskPillHtml = currentRiskProfile === 'aggressive'
     ? '<span class="risk-pill risk-high">HIGH RISK</span>'
-    : cfg.riskLevel === 'low' ? '<span class="risk-pill risk-stable">STABLE</span>' : '';
+    : currentRiskProfile === 'conservative' ? '<span class="risk-pill risk-stable">STABLE</span>' : '';
   document.getElementById('dd-market').innerHTML =
     escHtml(stock.market + (stock.sector ? ' · ' + stock.sector : '')) + riskPillHtml;
-  document.getElementById('dd-signal').innerHTML = signalChip(stock.total ?? 0) + fmtReturnBadge(stock.total ?? 0, currentHorizon);
+  document.getElementById('dd-signal').innerHTML = signalChip(stock.total ?? 0) + fmtReturnBadge(stock.total ?? 0, currentHorizon, currentRiskProfile);
 
   // Price block
   const pb = document.getElementById('dd-price-block');
@@ -2552,13 +2544,24 @@ document.addEventListener('DOMContentLoaded', () => {
     loadPicksForHorizon(this.value);
   });
 
+  // Risk profile filter
+  document.getElementById('risk-filter-bar').addEventListener('click', e => {
+    const btn = e.target.closest('.risk-btn');
+    if (!btn) return;
+    currentRiskProfile = btn.dataset.risk;
+    document.querySelectorAll('.risk-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadPicksForHorizon(currentHorizon);
+  });
+
   // Refresh picks button (force re-fetch, clear daily cache)
   document.getElementById('btn-refresh-picks').addEventListener('click', () => {
     const h     = document.getElementById('horizon-select').value;
     const today = new Date().toDateString();
     try { localStorage.removeItem('fufinds_picks_' + h + '_' + today); } catch {}
     // Clear all news localStorage entries so API is re-queried
-    [...POOL.US, ...POOL.SG].forEach(s => {
+    const refreshPool = getPoolForRisk(currentRiskProfile);
+    [...refreshPool.US, ...refreshPool.SG].forEach(s => {
       try { localStorage.removeItem('fufinds_news_' + s.ticker + '_' + today); } catch {}
     });
     newsCache = {};
