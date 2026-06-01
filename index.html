@@ -688,6 +688,14 @@
       .user-email-chip { display: none; }
       .auth-card { padding: 28px 20px; }
     }
+
+    /* ── SYNC STATUS ────────────────────────────────────── */
+    .sync-status {
+      font-size: .68rem; margin-top: 4px; min-height: 1em;
+      transition: color .2s;
+    }
+    .sync-status.ok   { color: var(--gain); }
+    .sync-status.fail { color: var(--loss); font-weight: 600; }
   </style>
 </head>
 <body>
@@ -788,6 +796,7 @@
         <div class="summary-label">Holdings</div>
         <div class="summary-value" id="sum-count">0</div>
         <div class="summary-sub">tracked positions</div>
+        <div class="sync-status" id="sync-status"></div>
       </div>
     </div>
 
@@ -1193,15 +1202,27 @@ async function syncWatchlistFromDB() {
       addedAt:  r.added_at,
     }));
     localStorage.setItem('fufinds_wl', JSON.stringify(watchlist));
+    setSyncStatus(true, '✓ Cloud synced');
     return true;
-  } catch { return false; }
+  } catch (e) {
+    console.warn('[FuFinds] DB fetch failed:', e?.message ?? e);
+    setSyncStatus(false, '⚠ Offline — showing local data');
+    return false;
+  }
+}
+
+function setSyncStatus(ok, msg) {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  el.textContent = msg;
+  el.className   = 'sync-status ' + (ok ? 'ok' : 'fail');
 }
 
 async function upsertItemInDB(item) {
   const uid = getUserKey();
   if (!uid) return;
   try {
-    await supa.from('fufinds_watchlist').upsert({
+    const { error } = await supa.from('fufinds_watchlist').upsert({
       id: item.id, user_key: uid,
       ticker:    item.ticker,
       company:   item.company   ?? '',
@@ -1210,16 +1231,26 @@ async function upsertItemInDB(item) {
       currency:  item.currency  ?? 'USD',
       added_at:  item.addedAt,
     });
-  } catch {}
+    if (error) throw error;
+    setSyncStatus(true, '✓ Cloud saved');
+  } catch (e) {
+    console.warn('[FuFinds] DB write failed:', e?.message ?? e);
+    setSyncStatus(false, '⚠ Sync error — data saved locally');
+  }
 }
 
 async function deleteItemFromDB(id) {
   const uid = getUserKey();
   if (!uid) return;
   try {
-    await supa.from('fufinds_watchlist').delete()
+    const { error } = await supa.from('fufinds_watchlist').delete()
       .eq('id', id).eq('user_key', uid);
-  } catch {}
+    if (error) throw error;
+    setSyncStatus(true, '✓ Cloud saved');
+  } catch (e) {
+    console.warn('[FuFinds] DB delete failed:', e?.message ?? e);
+    setSyncStatus(false, '⚠ Sync error — data saved locally');
+  }
 }
 
 // ──────────────────────────────────────────────────────────
@@ -2087,7 +2118,7 @@ function addToWL(ticker) {
   }
   const info = ALL_STOCKS[ticker];
   const newItem = {
-    id:       Date.now().toString(),
+    id:       crypto.randomUUID(),
     ticker,
     company:  info?.company || '',
     shares:   '',
@@ -2209,7 +2240,7 @@ function saveModal() {
     }
     const info = ALL_STOCKS[ticker];
     savedItem = {
-      id:       Date.now().toString(),
+      id:       crypto.randomUUID(),
       ticker,
       company:  company || info?.company || '',
       shares,
