@@ -689,6 +689,27 @@
       .auth-card { padding: 28px 20px; }
     }
 
+    /* ── EXPECTED RETURN & RISK BADGES ─────────────────── */
+    .ret-badge {
+      display: inline-block; font-size: .68rem; font-weight: 600;
+      padding: 2px 6px; border-radius: 4px; margin-top: 4px;
+      letter-spacing: .01em;
+    }
+    .ret-pos { background: var(--gain-bg);   color: var(--gain);   border: 1px solid var(--gain-bd); }
+    .ret-neg { background: var(--loss-bg);   color: var(--loss);   border: 1px solid var(--loss-bd); }
+    .risk-pill {
+      display: inline-block; font-size: .6rem; font-weight: 700;
+      padding: 1px 5px; border-radius: 3px; vertical-align: middle;
+      letter-spacing: .04em; margin-left: 5px;
+    }
+    .risk-high   { background: #fff1f0; color: #cf1322; border: 1px solid #ffa39e; }
+    .risk-stable { background: #f6ffed; color: #389e0d; border: 1px solid #b7eb8f; }
+    /* dark mode overrides */
+    @media (prefers-color-scheme: dark) {
+      .risk-high   { background: rgba(207,19,34,.15); color: #ff7875; border-color: rgba(207,19,34,.3); }
+      .risk-stable { background: rgba(56,158,13,.15); color: #95de64; border-color: rgba(56,158,13,.3); }
+    }
+
     /* ── SYNC STATUS ────────────────────────────────────── */
     .sync-status {
       font-size: .68rem; margin-top: 4px; min-height: 1em;
@@ -736,9 +757,15 @@
         <span class="horizon-view-label">Horizon:</span>
         <div class="select-wrap">
           <select id="horizon-select" class="horizon-select">
-            <option value="today">📅 Today's Picks</option>
-            <option value="month">📆 Monthly Picks</option>
-            <option value="year">📈 Yearly Picks</option>
+            <optgroup label="Time Horizon">
+              <option value="today">📅 Today's Picks</option>
+              <option value="month">📆 Monthly Picks</option>
+              <option value="year">📈 Yearly Picks</option>
+            </optgroup>
+            <optgroup label="Risk Profile">
+              <option value="aggressive">⚡ Aggressive Growth</option>
+              <option value="conservative">🛡 Conservative</option>
+            </optgroup>
           </select>
         </div>
       </div>
@@ -991,8 +1018,71 @@ const POOL = {
 };
 
 // Flat lookup map: ticker → stock object
+const POOL_AGGRESSIVE = {
+  US: [
+    { ticker:'TSLA', company:'Tesla Inc.',                 market:'NASDAQ', currency:'USD', sector:'EV & Robotics'       },
+    { ticker:'COIN', company:'Coinbase Global',            market:'NASDAQ', currency:'USD', sector:'Crypto Exchange'     },
+    { ticker:'SOFI', company:'SoFi Technologies',          market:'NASDAQ', currency:'USD', sector:'Neobank'             },
+    { ticker:'HOOD', company:'Robinhood Markets',          market:'NASDAQ', currency:'USD', sector:'Fintech'             },
+    { ticker:'IONQ', company:'IonQ Inc.',                  market:'NYSE',   currency:'USD', sector:'Quantum Computing'   },
+    { ticker:'RKLB', company:'Rocket Lab USA',             market:'NASDAQ', currency:'USD', sector:'Space Tech'          },
+    { ticker:'APP',  company:'AppLovin Corporation',       market:'NASDAQ', currency:'USD', sector:'AI Advertising'      },
+    { ticker:'RXRX', company:'Recursion Pharmaceuticals',  market:'NASDAQ', currency:'USD', sector:'AI Drug Discovery'   },
+    { ticker:'SOUN', company:'SoundHound AI',              market:'NASDAQ', currency:'USD', sector:'Voice AI'            },
+    { ticker:'CRSP', company:'CRISPR Therapeutics',        market:'NASDAQ', currency:'USD', sector:'Gene Editing'        },
+    { ticker:'MARA', company:'MARA Holdings',              market:'NASDAQ', currency:'USD', sector:'Bitcoin Mining'      },
+    { ticker:'SMCI', company:'Super Micro Computer',       market:'NASDAQ', currency:'USD', sector:'AI Infrastructure'   },
+    { ticker:'AI',   company:'C3.ai Inc.',                 market:'NYSE',   currency:'USD', sector:'Enterprise AI'       },
+    { ticker:'SE',   company:'Sea Limited',                market:'NYSE',   currency:'USD', sector:'SEA Digital Economy' },
+    { ticker:'GRAB', company:'Grab Holdings',              market:'NASDAQ', currency:'USD', sector:'SEA Super App'       },
+  ],
+  SG: [
+    { ticker:'MZH.SI', company:'Nanofilm Technologies',   market:'SGX', currency:'SGD', sector:'Advanced Materials'     },
+    { ticker:'S58.SI', company:'Silverlake Axis',          market:'SGX', currency:'SGD', sector:'Fintech Software'       },
+    { ticker:'5DX.SI', company:'HRnetGroup',               market:'SGX', currency:'SGD', sector:'Digital HR & Staffing' },
+    { ticker:'BTM.SI', company:'iX Biopharma',            market:'SGX', currency:'SGD', sector:'Biopharma'              },
+    { ticker:'UMS.SI', company:'UMS Holdings',             market:'SGX', currency:'SGD', sector:'Semiconductor Equip.'  },
+    { ticker:'BVU.SI', company:'Straco Corporation',       market:'SGX', currency:'SGD', sector:'Leisure & Tourism'     },
+  ]
+};
+
+const POOL_CONSERVATIVE = {
+  US: [
+    { ticker:'JNJ',  company:'Johnson & Johnson',         market:'NYSE',   currency:'USD', sector:'Healthcare'          },
+    { ticker:'PG',   company:'Procter & Gamble',          market:'NYSE',   currency:'USD', sector:'Consumer Staples'    },
+    { ticker:'KO',   company:'Coca-Cola Company',         market:'NYSE',   currency:'USD', sector:'Beverages'           },
+    { ticker:'WMT',  company:'Walmart Inc.',              market:'NYSE',   currency:'USD', sector:'Retail'              },
+    { ticker:'JPM',  company:'JPMorgan Chase',            market:'NYSE',   currency:'USD', sector:'Banking'             },
+    { ticker:'V',    company:'Visa Inc.',                 market:'NYSE',   currency:'USD', sector:'Payments'            },
+    { ticker:'UNH',  company:'UnitedHealth Group',        market:'NYSE',   currency:'USD', sector:'Healthcare'          },
+    { ticker:'HD',   company:'Home Depot',                market:'NYSE',   currency:'USD', sector:'Home Improvement'    },
+    { ticker:'VZ',   company:'Verizon Communications',    market:'NYSE',   currency:'USD', sector:'Telecom'             },
+    { ticker:'XOM',  company:'Exxon Mobil',               market:'NYSE',   currency:'USD', sector:'Energy'              },
+    { ticker:'NEE',  company:'NextEra Energy',            market:'NYSE',   currency:'USD', sector:'Utilities'           },
+    { ticker:'MCD',  company:"McDonald's Corporation",    market:'NYSE',   currency:'USD', sector:'Fast Food'           },
+    { ticker:'PEP',  company:'PepsiCo Inc.',              market:'NASDAQ', currency:'USD', sector:'Beverages'           },
+    { ticker:'COST', company:'Costco Wholesale',          market:'NASDAQ', currency:'USD', sector:'Retail'              },
+    { ticker:'MA',   company:'Mastercard Inc.',           market:'NYSE',   currency:'USD', sector:'Payments'            },
+  ],
+  SG: [
+    { ticker:'D05.SI',  company:'DBS Group Holdings',               market:'SGX', currency:'SGD', sector:'Banking'   },
+    { ticker:'O39.SI',  company:'OCBC Bank',                        market:'SGX', currency:'SGD', sector:'Banking'   },
+    { ticker:'U11.SI',  company:'United Overseas Bank',             market:'SGX', currency:'SGD', sector:'Banking'   },
+    { ticker:'A17U.SI', company:'CapitaLand Ascendas REIT',         market:'SGX', currency:'SGD', sector:'REITs'     },
+    { ticker:'C38U.SI', company:'CapitaLand Integrated Commercial', market:'SGX', currency:'SGD', sector:'REITs'     },
+    { ticker:'ME8U.SI', company:'Mapletree Industrial Trust',       market:'SGX', currency:'SGD', sector:'REITs'     },
+    { ticker:'M44U.SI', company:'Mapletree Logistics Trust',        market:'SGX', currency:'SGD', sector:'REITs'     },
+    { ticker:'T39.SI',  company:'Singapore Exchange',               market:'SGX', currency:'SGD', sector:'Financials'},
+    { ticker:'Z74.SI',  company:'Singapore Telecommunications',     market:'SGX', currency:'SGD', sector:'Telecom'   },
+    { ticker:'V03.SI',  company:'Venture Corporation',              market:'SGX', currency:'SGD', sector:'Electronics'},
+  ]
+};
+
 const ALL_STOCKS = {};
-[...POOL.US, ...POOL.SG].forEach(s => { ALL_STOCKS[s.ticker] = s; });
+[...POOL.US, ...POOL.SG,
+ ...POOL_AGGRESSIVE.US, ...POOL_AGGRESSIVE.SG,
+ ...POOL_CONSERVATIVE.US, ...POOL_CONSERVATIVE.SG
+].forEach(s => { ALL_STOCKS[s.ticker] = s; });
 
 // ──────────────────────────────────────────────────────────
 //  HORIZON CONFIGURATIONS
@@ -1052,8 +1142,60 @@ const HORIZONS = {
         : 'Structural tailwinds and competitive positioning support the long-term thesis.';
       return `High-conviction 12-month story for ${escHtml(company)}. ${signal} Secular tailwinds and durable competitive advantages support sustained appreciation over the next 12 months.`;
     }
+  },
+
+  aggressive: {
+    label:    "Aggressive Growth",
+    subtitle: "High-risk, high-reward — disruptive & future-oriented picks",
+    badge:    "High Risk / High Reward",
+    riskLevel: 'high',
+    pool:    null, // set after POOL_AGGRESSIVE is declared — patched below
+    priceW:  0.35,
+    newsW:   0.65,
+    bull: ['breakthrough','disruptive','exponential','hypergrowth','revolutionary',
+           'generational','moonshot','AI','quantum','blockchain','crypto','genomics',
+           'gene editing','autonomous','space','rocket','launch','token','protocol',
+           'next-generation','adoption','record','surge','partnership','raises',
+           'funding','speculative buy','strong growth','multi-bagger','explosive'],
+    bear: ['fraud','SEC investigation','bankrupt','delisting','failure','cash burn',
+           'going concern','dilution','miss','regulatory','lawsuit','fraud allegations',
+           'collapse','halted','massive loss','declining users'],
+    reasonFn(company, bull, topTitle) {
+      const signal = bull > 0
+        ? `${bull} high-conviction signal${bull > 1 ? 's' : ''} detected in recent coverage.`
+        : 'Speculative setup based on sector momentum and thematic positioning.';
+      const trigger = topTitle ? ` Latest catalyst: "${escHtml(topTitle.substring(0, 80))}…"` : '';
+      return `⚡ Aggressive pick: ${escHtml(company)}. ${signal}${trigger} High volatility expected — size positions accordingly.`;
+    }
+  },
+
+  conservative: {
+    label:    "Conservative",
+    subtitle: "Stable, dividend-paying blue-chips with consistent track records",
+    badge:    "Stable Growth Signal",
+    riskLevel: 'low',
+    pool:    null, // patched below
+    priceW:  0.20,
+    newsW:   0.80,
+    bull: ['dividend','raised dividend','dividend increase','buyback','share repurchase',
+           'stable growth','consistent earnings','beat','cash flow','blue chip',
+           'market leader','defensive','income','yield','reliable','strong balance sheet',
+           'free cash flow','recurring revenue','pricing power','resilient','steady'],
+    bear: ['dividend cut','dividend suspended','guidance cut','margin pressure',
+           'competition','market share loss','decline','restructuring','layoff',
+           'disappoints','below expectations','write-down','loss'],
+    reasonFn(company, bull, topTitle) {
+      const signal = bull > 0
+        ? `${bull} stability signal${bull > 1 ? 's' : ''} confirmed across recent coverage.`
+        : 'Fundamental quality and dividend track record support the defensive thesis.';
+      return `🛡 Conservative pick: ${escHtml(company)}. ${signal} Consistent earnings, strong cash flow and dividend history make this a reliable core holding.`;
+    }
   }
 };
+
+// Patch pool references (pools declared after HORIZONS literal)
+HORIZONS.aggressive.pool = POOL_AGGRESSIVE;
+HORIZONS.conservative.pool = POOL_CONSERVATIVE;
 
 // ──────────────────────────────────────────────────────────
 //  STATE
@@ -1375,6 +1517,29 @@ function signalChip(total) {
   return '<span class="signal-chip sig-caution">Caution</span>';
 }
 
+// Returns [lo%, hi%] expected return range for the given signal strength + horizon
+function calcExpectedReturn(total, horizon) {
+  const tbl = {
+    aggressive:   [[20,50],[10,25],[0,15],[-15,5]],
+    conservative: [[ 8,16],[ 5,11],[2, 7],[  0,3]],
+    today:        [[ 1, 4],[ 0, 2],[-1,1],[ -3,0]],
+    month:        [[ 5,15],[ 2, 8],[-1,4],[ -5,1]],
+    year:         [[15,35],[ 8,20],[ 2,10],[-5, 5]],
+  };
+  const idx = total >= 3 ? 0 : total >= 1 ? 1 : total >= -1 ? 2 : 3;
+  return (tbl[horizon] ?? tbl.year)[idx];
+}
+
+function fmtReturnBadge(total, horizon) {
+  const [lo, hi] = calcExpectedReturn(total, horizon);
+  const sign  = v => v >= 0 ? '+' : '';
+  const range = lo === hi ? `${sign(lo)}${lo}%` : `${sign(lo)}${lo}% to ${sign(hi)}${hi}%`;
+  const label = { today:'Today', month:'Month', year:'Annual',
+                  aggressive:'Annual', conservative:'Annual' }[horizon] ?? 'Annual';
+  const cls   = lo >= 0 ? 'ret-pos' : 'ret-neg';
+  return `<span class="ret-badge ${cls}">Est. ${label}: ${range}</span>`;
+}
+
 // ──────────────────────────────────────────────────────────
 //  PICKS LOADING & RENDERING
 // ──────────────────────────────────────────────────────────
@@ -1411,7 +1576,8 @@ async function loadPicksForHorizon(horizon, force = false) {
     document.getElementById('picks-container').style.display = 'none';
     document.getElementById('btn-refresh-picks').disabled   = true;
 
-    const allTickers = [...POOL.US.map(s => s.ticker), ...POOL.SG.map(s => s.ticker)];
+    const pool       = cfg.pool ?? POOL;
+    const allTickers = [...pool.US.map(s => s.ticker), ...pool.SG.map(s => s.ticker)];
 
     // 1. Prices
     setLoadingMsg('Fetching live prices…');
@@ -1436,8 +1602,8 @@ async function loadPicksForHorizon(horizon, force = false) {
       return { ...stock, ...sc };
     };
 
-    const usPicks = POOL.US.map(score).sort((a, b) => b.total - a.total).slice(0, 5);
-    const sgPicks = POOL.SG.map(score).sort((a, b) => b.total - a.total).slice(0, 5);
+    const usPicks = pool.US.map(score).sort((a, b) => b.total - a.total).slice(0, 5);
+    const sgPicks = pool.SG.map(score).sort((a, b) => b.total - a.total).slice(0, 5);
 
     const result = { us: usPicks, sg: sgPicks, generatedAt: new Date().toISOString() };
     try { localStorage.setItem(cacheKey, JSON.stringify(result)); } catch {}
@@ -1512,12 +1678,24 @@ function buildPickCard(stock, horizon) {
   const bull = stock.bull ?? 0;
   const bear = stock.bear ?? 0;
   const sentiment = stock.total >= 2 ? 'strongly bullish' : stock.total >= 0 ? 'moderately bullish' : 'cautious';
+  const scoringFocus = { today:'intraday momentum', month:'earnings & analyst sentiment',
+                         year:'long-term strategic positioning',
+                         aggressive:'disruptive growth signals & speculative momentum',
+                         conservative:'dividend stability & fundamental quality' }[horizon] ?? 'signal strength';
   const researchHtml = `News-flow analysis shows <strong>${sentiment}</strong> sentiment ` +
     `(${bull} positive vs ${bear} negative signals) across ${news.length} recent articles. ` +
-    `Scoring framework weighted towards ${horizon === 'today' ? 'intraday momentum' : horizon === 'month' ? 'earnings & analyst sentiment' : 'long-term strategic positioning'}.`;
+    `Scoring framework weighted towards ${scoringFocus}.`;
 
-  // Reason
-  const reasonText = cfg.reasonFn(stock.company, bull, stock.topTitle ?? '');
+  // Reason + expected return
+  const reasonText  = cfg.reasonFn(stock.company, bull, stock.topTitle ?? '');
+  const retBadgeHtml = fmtReturnBadge(stock.total ?? 0, horizon);
+
+  // Risk pill for aggressive/conservative
+  const riskPill = cfg.riskLevel === 'high'
+    ? '<span class="risk-pill risk-high">HIGH RISK</span>'
+    : cfg.riskLevel === 'low'
+      ? '<span class="risk-pill risk-stable">STABLE</span>'
+      : '';
 
   const el = document.createElement('div');
   el.className    = 'stock-card';
@@ -1528,12 +1706,13 @@ function buildPickCard(stock, horizon) {
         <div class="ticker-badge ${isSG ? 'sg-badge' : ''}">${disp}</div>
         <div>
           <div class="company-name">${stock.company}</div>
-          <div class="market-pill">${stock.market} · ${stock.sector}</div>
+          <div class="market-pill">${stock.market} · ${stock.sector}${riskPill}</div>
         </div>
       </div>
       <div class="card-right">
         <div class="price-block">${priceHtml}</div>
         ${signalChip(stock.total ?? 0)}
+        ${retBadgeHtml}
       </div>
     </div>
 
@@ -1623,8 +1802,13 @@ function openStockDetail(ticker) {
   badge.textContent = disp;
   badge.className   = 'ticker-badge' + (isSG ? ' sg-badge' : '');
   document.getElementById('dd-company').textContent = stock.company;
-  document.getElementById('dd-market').textContent  = stock.market + (stock.sector ? ' · ' + stock.sector : '');
-  document.getElementById('dd-signal').innerHTML    = signalChip(stock.total ?? 0);
+  const cfg = HORIZONS[currentHorizon];
+  const riskPillHtml = cfg.riskLevel === 'high'
+    ? '<span class="risk-pill risk-high">HIGH RISK</span>'
+    : cfg.riskLevel === 'low' ? '<span class="risk-pill risk-stable">STABLE</span>' : '';
+  document.getElementById('dd-market').innerHTML =
+    escHtml(stock.market + (stock.sector ? ' · ' + stock.sector : '')) + riskPillHtml;
+  document.getElementById('dd-signal').innerHTML = signalChip(stock.total ?? 0) + fmtReturnBadge(stock.total ?? 0, currentHorizon);
 
   // Price block
   const pb = document.getElementById('dd-price-block');
