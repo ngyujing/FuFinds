@@ -1724,6 +1724,16 @@ async function loadStockChart(ticker, rangeKey) {
   if (!data || data.closes.filter(Boolean).length < 2) {
     loading.innerHTML = '<span style="color:var(--text-3);font-size:.82rem">Chart data unavailable</span>';
     loading.style.display = 'flex';
+    // Fall back to showing the live 1D change
+    const pdFb = prices[ticker];
+    if (pdFb) {
+      const curFb    = ALL_STOCKS[ticker]?.currency ?? 'USD';
+      const changeEl = document.getElementById('dd-price-block')?.querySelector('.price-change');
+      if (changeEl) {
+        changeEl.className   = 'price-change ' + (pdFb.change >= 0 ? 'up' : 'down');
+        changeEl.textContent = `${pdFb.change >= 0 ? '+' : ''}${fmtCur(pdFb.change, curFb)} (${fmtPct(pdFb.changePct)})`;
+      }
+    }
     return;
   }
 
@@ -1772,6 +1782,16 @@ async function loadStockChart(ticker, rangeKey) {
       interaction: { mode: 'nearest', axis: 'x', intersect: false }
     }
   });
+
+  // Update the price-change line to reflect the selected interval's range
+  const rangeChange    = points.at(-1).y - points[0].y;
+  const rangeChangePct = points[0].y !== 0 ? (rangeChange / points[0].y) * 100 : 0;
+  const pb       = document.getElementById('dd-price-block');
+  const changeEl = pb?.querySelector('.price-change');
+  if (changeEl) {
+    changeEl.className   = 'price-change ' + (rangeChange >= 0 ? 'up' : 'down');
+    changeEl.textContent = `${rangeChange >= 0 ? '+' : ''}${fmtCur(rangeChange, cur)} (${fmtPct(rangeChangePct)})`;
+  }
 }
 
 // ──────────────────────────────────────────────────────────
