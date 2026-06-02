@@ -848,6 +848,11 @@
         <div class="summary-sub">tracked positions</div>
         <div class="sync-status" id="sync-status"></div>
       </div>
+      <div class="summary-card" style="grid-column:1/-1">
+        <div class="summary-label">Total Portfolio (SGD)</div>
+        <div class="summary-value" id="sum-total-sgd">—</div>
+        <div class="summary-sub" id="sum-total-sgd-sub">USD + SGD positions combined</div>
+      </div>
     </div>
 
     <!-- Portfolio Trend -->
@@ -1399,6 +1404,8 @@ let editId              = null;
 let autoTimer           = null;
 let currentHorizon      = 'today';
 let currentRiskProfile  = 'all'; // 'all' | 'aggressive' | 'conservative'
+let fxUSDSGD            = null;  // cached USD→SGD rate
+let fxUSDSGDTs          = 0;     // timestamp of last successful fetch
 
 function getPoolForRisk(risk) {
   return risk === 'aggressive' ? POOL_AGGRESSIVE
@@ -1460,6 +1467,16 @@ async function loadPrices(symbols) {
   });
   const now = new Date().toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' });
   document.getElementById('header-meta').textContent = 'Updated ' + now;
+}
+
+async function fetchUSDSGDRate() {
+  const age = Date.now() - fxUSDSGDTs;
+  if (fxUSDSGD && age < 5 * 60 * 1000) return fxUSDSGD; // cache 5 min
+  try {
+    const pd = await fetchPrice('USDSGD=X');
+    if (pd?.price > 0) { fxUSDSGD = pd.price; fxUSDSGDTs = Date.now(); }
+  } catch { /* keep previous value */ }
+  return fxUSDSGD;
 }
 
 // ──────────────────────────────────────────────────────────
@@ -2137,13 +2154,19 @@ async function loadPortfolioChart(rangeKey) {
     }
   });
 
-  // Update subtitle with latest portfolio value
+  // Update subtitle with latest portfolio value (total in SGD if FX available)
   const lastUSD = hasUSD ? usdValues.filter(Boolean).at(-1) : null;
   const lastSGD = hasSGD ? sgdValues.filter(Boolean).at(-1) : null;
-  const parts = [];
-  if (lastUSD) parts.push(fmtCur(lastUSD, 'USD'));
-  if (lastSGD) parts.push(fmtCur(lastSGD, 'SGD'));
-  subEl.textContent = (parts.length ? parts.join(' · ') + ' · ' : '') + rangeKey + ' view';
+  const fx = await fetchUSDSGDRate();
+  if (fx && (lastUSD || lastSGD)) {
+    const totalSGD = (lastSGD ?? 0) + (lastUSD ?? 0) * fx;
+    subEl.textContent = `Total ${fmtCur(totalSGD, 'SGD')} · ${rangeKey} view`;
+  } else {
+    const parts = [];
+    if (lastUSD) parts.push(fmtCur(lastUSD, 'USD'));
+    if (lastSGD) parts.push(fmtCur(lastSGD, 'SGD'));
+    subEl.textContent = (parts.length ? parts.join(' · ') + ' · ' : '') + rangeKey + ' view';
+  }
 }
 
 // Update prices on whichever cards are currently rendered
@@ -2274,7 +2297,7 @@ function buildRow(item) {
     </tr>`;
 }
 
-function updateSummary() {
+async function updateSummary() {
   let usdVal = 0, usdCost = 0, usdHasV = false, usdHasC = false;
   let sgdVal = 0, sgdCost = 0, sgdHasV = false, sgdHasC = false;
 
@@ -2324,6 +2347,28 @@ function updateSummary() {
   }
 
   document.getElementById('sum-count').textContent = watchlist.length;
+
+  // Total Portfolio in SGD — convert USD → SGD via live FX rate
+  const totalEl  = document.getElementById('sum-total-sgd');
+  const totalSub = document.getElementById('sum-total-sgd-sub');
+  if (usdHasV || sgdHasV) {
+    const fx = await fetchUSDSGDRate();
+    if (fx) {
+      const totalSGD = sgdVal + usdVal * fx;
+      setEl('sum-total-sgd', fmtCur(totalSGD, 'SGD'));
+      if (totalSub) totalSub.textContent = `USD×${fx.toFixed(4)} + SGD positions`;
+    } else {
+      // FX unavailable — show separate values
+      const parts = [];
+      if (usdHasV) parts.push(fmtCur(usdVal, 'USD'));
+      if (sgdHasV) parts.push(fmtCur(sgdVal, 'SGD'));
+      setEl('sum-total-sgd', parts.join(' + '));
+      if (totalSub) totalSub.textContent = 'FX rate unavailable';
+    }
+  } else {
+    setEl('sum-total-sgd', '—');
+    if (totalSub) totalSub.textContent = 'USD + SGD positions combined';
+  }
 }
 
 // ──────────────────────────────────────────────────────────
