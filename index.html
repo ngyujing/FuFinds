@@ -1286,12 +1286,15 @@ function refreshWatchlistUI() {
 }
 
 async function initAuth() {
+  let initialSyncDone = false;
+
   const { data: { session } } = await supa.auth.getSession();
   if (session) {
     currentUser = session.user;
     showApp();
     await syncWatchlistFromDB();
     refreshWatchlistUI();
+    initialSyncDone = true;
   } else {
     showAuthScreen();
   }
@@ -1300,10 +1303,16 @@ async function initAuth() {
     if (event === 'SIGNED_IN' && session) {
       currentUser = session.user;
       showApp();
-      await syncWatchlistFromDB();
-      refreshWatchlistUI();
+      // Skip the automatic SIGNED_IN that fires on page load for an existing session
+      // (initAuth already ran the sync above via getSession)
+      if (!initialSyncDone) {
+        await syncWatchlistFromDB();
+        refreshWatchlistUI();
+      }
+      initialSyncDone = false; // reset so explicit re-logins sync normally
     } else if (event === 'SIGNED_OUT') {
       currentUser = null;
+      initialSyncDone = false;
       // Explicit sign-out: clear local data so the next user starts fresh
       watchlist = [];
       localStorage.removeItem('fufinds_wl');
@@ -1326,13 +1335,12 @@ async function syncWatchlistFromDB() {
     if (error) throw error;
 
     if (data.length === 0 && watchlist.length > 0) {
-      // DB is empty but we have local items — migrate them up (handles first login
-      // with existing data, or recovery after failed previous upserts)
+      // DB is empty but we have local items — migrate them all up
       setSyncStatus(true, 'Syncing to cloud…');
       await Promise.allSettled(watchlist.map(item => upsertItemInDB(item)));
       setSyncStatus(true, '✓ Cloud synced');
     } else if (data.length > 0) {
-      watchlist = data.map(r => ({
+      const dbItems = data.map(r => ({
         id: r.id, ticker: r.ticker,
         company:  r.company   ?? '',
         shares:   r.shares    ?? '',
@@ -1340,6 +1348,18 @@ async function syncWatchlistFromDB() {
         currency: r.currency  ?? 'USD',
         addedAt:  r.added_at,
       }));
+
+      // Push any local items that aren't in DB yet (failed upserts from prev session)
+      const dbIds = new Set(dbItems.map(i => i.id));
+      const pending = watchlist.filter(i => !dbIds.has(i.id));
+      if (pending.length > 0) {
+        setSyncStatus(true, 'Syncing to cloud…');
+        await Promise.allSettled(pending.map(item => upsertItemInDB(item)));
+        watchlist = [...dbItems, ...pending];
+      } else {
+        watchlist = dbItems;
+      }
+
       localStorage.setItem('fufinds_wl', JSON.stringify(watchlist));
       setSyncStatus(true, '✓ Cloud synced');
     }
